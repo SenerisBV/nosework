@@ -89,9 +89,11 @@ bun add nosework
 Add to your `.env`:
 
 ```env
-ANALYTICS_DATABASE_URL="postgresql://user:pass@host/dbname"
+DATABASE_URL="postgresql://user:pass@host/dbname"
 ANALYTICS_SITE_ID="my-app"  # Unique identifier for this app
 ```
+
+**MoopySuite Users:** If you're using MoopySuite OAuth, use your existing `MOOPY_CLIENT_ID` as the site identifier - no new env var needed! See [MoopySuite Integration](./docs/MOOPYSUITE_INTEGRATION.md).
 
 ### 3. Run Database Migration
 

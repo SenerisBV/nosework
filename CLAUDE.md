@@ -38,12 +38,49 @@ Each consuming app:
 |------|---------|
 | `src/index.ts` | Main exports |
 | `src/track.ts` | `trackPageView()`, `trackEvent()` |
-| `src/query.ts` | `getStats()`, `getTopPages()`, `getLocations()`, etc. |
+| `src/query.ts` | Page analytics + session analytics queries |
+| `src/error.ts` | Error tracking + queries |
+| `src/client/errors.ts` | Client-side error capture (~2KB) |
 | `src/ua.ts` | User-Agent parsing |
 | `src/utils.ts` | Visitor hashing, bot detection |
 | `src/client.ts` | Prisma client singleton |
 | `src/types.ts` | TypeScript interfaces |
 | `prisma/schema.prisma` | Database schema |
+
+## Query Functions
+
+### Page Analytics
+- `getStats()` - Page views, visitors, sessions, bounce rate
+- `getTopPages()` - Most viewed pages
+- `getLocations()` - Geographic breakdown
+- `getReferrers()` - Traffic sources
+- `getDevices()` - Browser/OS/device breakdown
+- `getTimeSeries()` - Time-based data for charts
+
+### Session Analytics
+- `getSessionStats()` - Total sessions, avg duration, pages per session, bounce rate
+- `getEntryPages()` - First page of each session (landing pages)
+- `getExitPages()` - Last page of each session
+- `getPageFlows()` - Common user paths through the site
+- `getSessions()` - Individual session data for debugging
+
+### Site Management
+- `getOrCreateSite()` - Create or retrieve a site
+- `listSites()` - List all tracked sites
+
+### Error Tracking
+- `trackError()` - Track a JavaScript error
+- `getErrorStats()` - Error counts, unique errors, open groups
+- `getErrorGroups()` - Grouped errors by fingerprint
+- `getErrorInstances()` - Individual error occurrences
+- `updateErrorGroupStatus()` - Mark errors resolved/ignored
+- `deleteOldErrors()` - Clean up old error data
+
+### Client-Side Error Capture
+Import from `@seneris/nosework/client/errors`:
+- `initErrorTracking()` - Auto-capture unhandled errors
+- `captureError()` - Manually track caught errors
+- `stopErrorTracking()` - Remove event listeners
 
 ## Development
 
@@ -88,6 +125,8 @@ These headers are automatically available on Vercel-hosted apps. No third-party 
 - **PageView** - Page view events with location, device, visitor hash
 - **Event** - Custom events with name, properties, visitor hash
 - **DailySalt** - Rotating salts for visitor hashing (privacy)
+- **Error** - Individual error occurrences with stack traces
+- **ErrorGroup** - Aggregated errors by fingerprint with counts and status
 
 ## Integration Requirements
 
@@ -108,11 +147,22 @@ See README.md for complete code examples.
 
 ## Publishing
 
+See `docs/PUBLISHING.md` for full guide.
+
 ```bash
-# Build and publish to npm
+# Quick publish
 bun run build
-npm publish
+npm publish --access public
 ```
+
+## Integration with MoopySuite
+
+The analytics tables can be added to MoopySuite's database instead of a separate DB.
+See `docs/MOOPYSUITE_INTEGRATION.md` for:
+- Schema additions
+- How App.id maps to siteId
+- Dashboard integration
+- Query examples with user joins
 
 ## Dependencies
 

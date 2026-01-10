@@ -71,7 +71,57 @@ nosework aims to be the simplest, most privacy-respecting analytics solution for
 
 ---
 
-## Phase 4: Advanced Features
+## Phase 4: Session Analytics ✅ COMPLETE
+
+**Goal:** Add session-level analytics without compromising privacy.
+
+### Session Metrics
+- [x] `getSessionStats()` - Total sessions, avg duration, pages per session, bounce rate
+- [x] `getEntryPages()` - Most common entry pages with percentages
+- [x] `getExitPages()` - Most common exit pages with percentages
+- [x] `getPageFlows()` - Common user paths through the site
+- [x] `getSessions()` - Individual session data for debugging
+
+All derived from existing PageView data (no schema changes required).
+
+---
+
+## Phase 5: Error Tracking ✅ COMPLETE
+
+**Goal:** Capture and aggregate client-side JavaScript errors.
+
+### Error Capture
+- [x] `trackError()` - Server-side error tracking function
+- [x] Client-side error capture script (~2KB) - `@seneris/nosework/client/errors`
+- [x] Error fingerprinting for grouping similar errors
+- [x] Stack trace storage and parsing
+
+### Error Queries
+- [x] `getErrorStats()` - Error counts and unique errors
+- [x] `getErrorGroups()` - Grouped errors by fingerprint
+- [x] `getErrorInstances()` - Individual error occurrences
+- [x] `updateErrorGroupStatus()` - Mark errors resolved/ignored
+- [x] `deleteOldErrors()` - Clean up old error data
+
+---
+
+## Phase 6: LLM Analytics (Separate Package)
+
+**Goal:** Track LLM API usage across apps (new `@seneris/nosework-llm` package).
+
+### Tracking
+- [ ] `trackLLMCall()` - Record model, tokens, latency, cost
+- [ ] Built-in pricing for OpenAI/Anthropic/Google models
+- [ ] Conversation grouping via conversationId
+
+### Queries
+- [ ] `getLLMStats()` - Total calls, tokens, cost, error rate
+- [ ] `getLLMUsageByModel()` - Breakdown by model
+- [ ] `getLLMTimeSeries()` - Usage over time
+
+---
+
+## Phase 7: Advanced Features
 
 **Goal:** Add features for power users without compromising simplicity.
 
@@ -79,11 +129,6 @@ nosework aims to be the simplest, most privacy-respecting analytics solution for
 - [ ] Define conversion funnels
 - [ ] Track funnel progression
 - [ ] Funnel visualization queries
-
-### User Journeys
-- [ ] Session reconstruction
-- [ ] Page flow analysis
-- [ ] Entry/exit page tracking
 
 ### A/B Testing Integration
 - [ ] Variant tracking
@@ -97,7 +142,7 @@ nosework aims to be the simplest, most privacy-respecting analytics solution for
 
 ---
 
-## Phase 5: Scale & Enterprise
+## Phase 8: Scale & Enterprise
 
 **Goal:** Support larger deployments and team use cases.
 
@@ -127,7 +172,6 @@ These are explicitly **not** planned:
 - **Session recordings** - Privacy concern, different product category
 - **Heatmaps** - Requires significant client-side code
 - **Form analytics** - Too specific, users can track via events
-- **Error tracking** - Use Sentry or similar
 - **Performance monitoring** - Use Vercel Analytics for Web Vitals
 - **Non-Vercel hosting** - Geo headers are Vercel-specific by design
 

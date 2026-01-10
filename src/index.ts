@@ -3,6 +3,16 @@
 // Tracking functions
 export { trackPageView, trackEvent } from "./track.js";
 
+// Error tracking functions
+export {
+  trackError,
+  getErrorStats,
+  getErrorGroups,
+  getErrorInstances,
+  updateErrorGroupStatus,
+  deleteOldErrors,
+} from "./error.js";
+
 // Query functions
 export {
   getStats,
@@ -13,6 +23,12 @@ export {
   getTimeSeries,
   getOrCreateSite,
   listSites,
+  // Session analytics
+  getSessionStats,
+  getEntryPages,
+  getExitPages,
+  getPageFlows,
+  getSessions,
 } from "./query.js";
 
 // Client utilities
@@ -39,6 +55,17 @@ export type {
   GeoLocation,
   ParsedUserAgent,
   VisitorInfo,
+  // Session analytics types
+  SessionStats,
+  SessionData,
+  EntryExitPage,
+  PageFlow,
+  // Error tracking types
+  TrackErrorOptions,
+  ErrorStats,
+  ErrorGroupStatus,
+  ErrorGroupData,
+  ErrorInstance,
 } from "./types.js";
 
 // Re-export TimeSeriesDataPoint from query

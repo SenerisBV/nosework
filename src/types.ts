@@ -90,3 +90,96 @@ export interface VisitorInfo {
   visitorHash: string;
   sessionId: string;
 }
+
+// Session Analytics Types
+
+export interface SessionStats {
+  totalSessions: number;
+  avgDuration: number; // seconds
+  avgPagesPerSession: number;
+  bounceRate: number; // percentage
+}
+
+export interface SessionData {
+  sessionId: string;
+  visitorHash: string;
+  startTime: Date;
+  endTime: Date;
+  duration: number; // seconds
+  pageCount: number;
+  entryPage: string;
+  exitPage: string;
+  isBounce: boolean;
+  country: string | null;
+  device: string | null;
+  browser: string | null;
+}
+
+export interface EntryExitPage {
+  pathname: string;
+  count: number;
+  percentage: number;
+}
+
+export interface PageFlow {
+  path: string[]; // e.g., ['/', '/pricing', '/signup']
+  count: number;
+  percentage: number;
+}
+
+// Error Tracking Types
+
+export interface TrackErrorOptions {
+  siteId: string;
+  message: string;
+  stack?: string | null;
+  url: string;
+  // Visitor context (optional, from existing tracking)
+  visitorHash?: string | null;
+  sessionId?: string | null;
+  userId?: string | null;
+  // Browser context (optional)
+  browser?: string | null;
+  browserVer?: string | null;
+  os?: string | null;
+  device?: string | null;
+  // Custom metadata
+  metadata?: Record<string, unknown> | null;
+}
+
+export interface ErrorStats {
+  totalErrors: number;
+  uniqueErrors: number; // by fingerprint
+  errorsToday: number;
+  openGroups: number;
+}
+
+export type ErrorGroupStatus = "open" | "resolved" | "ignored";
+
+export interface ErrorGroupData {
+  id: string;
+  fingerprint: string;
+  message: string;
+  stack: string | null;
+  count: number;
+  firstSeen: Date;
+  lastSeen: Date;
+  status: ErrorGroupStatus;
+}
+
+export interface ErrorInstance {
+  id: string;
+  message: string;
+  stack: string | null;
+  url: string;
+  pathname: string;
+  visitorHash: string | null;
+  sessionId: string | null;
+  userId: string | null;
+  browser: string | null;
+  browserVer: string | null;
+  os: string | null;
+  device: string | null;
+  metadata: Record<string, unknown> | null;
+  timestamp: Date;
+}

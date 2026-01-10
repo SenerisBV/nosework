@@ -13,8 +13,10 @@ model Site {
   domain    String   @unique
   createdAt DateTime @default(now())
 
-  pageViews PageView[]
-  events    Event[]
+  pageViews   PageView[]
+  events      Event[]
+  errors      Error[]
+  errorGroups ErrorGroup[]
 }
 
 model PageView {
@@ -83,4 +85,61 @@ model Event {
 model DailySalt {
   date DateTime @id @db.Date
   salt String
+}
+
+// Error tracking
+model Error {
+  id          String   @id @default(cuid())
+  siteId      String
+  site        Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  // Error details
+  message     String
+  stack       String?  @db.Text
+  fingerprint String   // Hash for grouping similar errors
+
+  // Context
+  url         String
+  pathname    String
+
+  // Visitor context (reuse existing pattern)
+  visitorHash String?
+  sessionId   String?
+  userId      String?
+
+  // Browser context
+  browser     String?
+  browserVer  String?
+  os          String?
+  device      String?
+
+  // Metadata
+  metadata    Json?    // Custom context from app
+
+  timestamp   DateTime @default(now())
+
+  @@index([siteId, timestamp])
+  @@index([siteId, fingerprint])
+}
+
+model ErrorGroup {
+  id          String   @id @default(cuid())
+  siteId      String
+  site        Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  fingerprint String
+
+  // Representative error
+  message     String
+  stack       String?  @db.Text
+
+  // Counts
+  count       Int      @default(1)
+  lastSeen    DateTime
+  firstSeen   DateTime
+
+  // Status: open, resolved, ignored
+  status      String   @default("open")
+
+  @@unique([siteId, fingerprint])
+  @@index([siteId, status, lastSeen])
 }
