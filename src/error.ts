@@ -1,6 +1,7 @@
 import { getClient } from "./client.js";
+import { analyticsErrors, errorGroups } from "./schema.js";
+import { eq, and, gte, lte, lt, count, countDistinct, desc, inArray } from "drizzle-orm";
 import { createHash } from "crypto";
-import type { Prisma } from "@prisma/client";
 import type {
   TrackErrorOptions,
   ErrorStats,
@@ -26,14 +27,12 @@ function createFingerprint(message: string, stack?: string | null): string {
   let topFrame = "";
   if (stack) {
     const lines = stack.split("\n");
-    // Find first line that looks like a stack frame (starts with "at " or similar)
     for (const line of lines.slice(1)) {
       const trimmed = line.trim();
       if (trimmed.startsWith("at ") || trimmed.match(/^\w+@/)) {
-        // Normalize file paths and line numbers
         topFrame = trimmed
-          .replace(/:\d+:\d+/g, ":L:C") // Line:column → L:C
-          .replace(/\?.*/g, ""); // Remove query strings
+          .replace(/:\d+:\d+/g, ":L:C")
+          .replace(/\?.*/g, "");
         break;
       }
     }
@@ -66,50 +65,53 @@ export async function trackError(options: TrackErrorOptions): Promise<void> {
   const now = new Date();
 
   // Create the error record
-  await db.error.create({
-    data: {
-      siteId: options.siteId,
-      message: options.message,
-      stack: options.stack,
-      fingerprint,
-      url: options.url,
-      pathname,
-      visitorHash: options.visitorHash,
-      sessionId: options.sessionId,
-      userId: options.userId,
-      browser: options.browser,
-      browserVer: options.browserVer,
-      os: options.os,
-      device: options.device,
-      metadata: (options.metadata as Prisma.InputJsonValue) ?? undefined,
-    },
+  await db.insert(analyticsErrors).values({
+    siteId: options.siteId,
+    message: options.message,
+    stack: options.stack ?? null,
+    fingerprint,
+    url: options.url,
+    pathname,
+    visitorHash: options.visitorHash ?? null,
+    sessionId: options.sessionId ?? null,
+    userId: options.userId ?? null,
+    browser: options.browser ?? null,
+    browserVer: options.browserVer ?? null,
+    os: options.os ?? null,
+    device: options.device ?? null,
+    metadata: options.metadata ?? null,
   });
 
-  // Upsert the error group
-  await db.errorGroup.upsert({
-    where: {
-      siteId_fingerprint: {
-        siteId: options.siteId,
-        fingerprint,
-      },
-    },
-    create: {
+  // Check if error group exists
+  const [existingGroup] = await db
+    .select()
+    .from(errorGroups)
+    .where(and(eq(errorGroups.siteId, options.siteId), eq(errorGroups.fingerprint, fingerprint)))
+    .limit(1);
+
+  if (existingGroup) {
+    // Update existing group
+    await db
+      .update(errorGroups)
+      .set({
+        count: existingGroup.count + 1,
+        lastSeen: now,
+        ...(options.stack && { stack: options.stack }),
+      })
+      .where(eq(errorGroups.id, existingGroup.id));
+  } else {
+    // Create new group
+    await db.insert(errorGroups).values({
       siteId: options.siteId,
       fingerprint,
       message: options.message,
-      stack: options.stack,
+      stack: options.stack ?? null,
       count: 1,
       firstSeen: now,
       lastSeen: now,
       status: "open",
-    },
-    update: {
-      count: { increment: 1 },
-      lastSeen: now,
-      // Update message/stack if this is a clearer example
-      ...(options.stack && { stack: options.stack }),
-    },
-  });
+    });
+  }
 }
 
 /**
@@ -121,45 +123,46 @@ export async function getErrorStats(
 ): Promise<ErrorStats> {
   const db = getClient();
 
-  const where = {
-    siteId,
-    ...(options?.startDate || options?.endDate
-      ? {
-          timestamp: {
-            ...(options?.startDate && { gte: options.startDate }),
-            ...(options?.endDate && { lte: options.endDate }),
-          },
-        }
-      : {}),
-  };
+  // Build where conditions
+  const whereConditions = [eq(analyticsErrors.siteId, siteId)];
+  if (options?.startDate) {
+    whereConditions.push(gte(analyticsErrors.timestamp, options.startDate));
+  }
+  if (options?.endDate) {
+    whereConditions.push(lte(analyticsErrors.timestamp, options.endDate));
+  }
+  const where = and(...whereConditions);
 
-  const totalErrors = await db.error.count({ where });
+  // Total errors
+  const [totalResult] = await db
+    .select({ count: count() })
+    .from(analyticsErrors)
+    .where(where);
 
-  const uniqueResult = await db.error.groupBy({
-    by: ["fingerprint"],
-    where,
-  });
-  const uniqueErrors = uniqueResult.length;
+  // Unique errors (by fingerprint)
+  const [uniqueResult] = await db
+    .select({ count: countDistinct(analyticsErrors.fingerprint) })
+    .from(analyticsErrors)
+    .where(where);
 
   // Errors in last 24 hours
   const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  const errorsToday = await db.error.count({
-    where: {
-      siteId,
-      timestamp: { gte: oneDayAgo },
-    },
-  });
+  const [todayResult] = await db
+    .select({ count: count() })
+    .from(analyticsErrors)
+    .where(and(eq(analyticsErrors.siteId, siteId), gte(analyticsErrors.timestamp, oneDayAgo)));
 
   // Open error groups
-  const openGroups = await db.errorGroup.count({
-    where: { siteId, status: "open" },
-  });
+  const [openResult] = await db
+    .select({ count: count() })
+    .from(errorGroups)
+    .where(and(eq(errorGroups.siteId, siteId), eq(errorGroups.status, "open")));
 
   return {
-    totalErrors,
-    uniqueErrors,
-    errorsToday,
-    openGroups,
+    totalErrors: totalResult?.count ?? 0,
+    uniqueErrors: uniqueResult?.count ?? 0,
+    errorsToday: todayResult?.count ?? 0,
+    openGroups: openResult?.count ?? 0,
   };
 }
 
@@ -178,15 +181,18 @@ export async function getErrorGroups(
   const limit = options?.limit ?? 50;
   const offset = options?.offset ?? 0;
 
-  const groups = await db.errorGroup.findMany({
-    where: {
-      siteId,
-      ...(options?.status && { status: options.status }),
-    },
-    orderBy: { lastSeen: "desc" },
-    take: limit,
-    skip: offset,
-  });
+  const whereConditions = [eq(errorGroups.siteId, siteId)];
+  if (options?.status) {
+    whereConditions.push(eq(errorGroups.status, options.status));
+  }
+
+  const groups = await db
+    .select()
+    .from(errorGroups)
+    .where(and(...whereConditions))
+    .orderBy(desc(errorGroups.lastSeen))
+    .limit(limit)
+    .offset(offset);
 
   return groups.map((g) => ({
     id: g.id,
@@ -212,12 +218,13 @@ export async function getErrorInstances(
   const limit = options?.limit ?? 50;
   const offset = options?.offset ?? 0;
 
-  const errors = await db.error.findMany({
-    where: { siteId, fingerprint },
-    orderBy: { timestamp: "desc" },
-    take: limit,
-    skip: offset,
-  });
+  const errors = await db
+    .select()
+    .from(analyticsErrors)
+    .where(and(eq(analyticsErrors.siteId, siteId), eq(analyticsErrors.fingerprint, fingerprint)))
+    .orderBy(desc(analyticsErrors.timestamp))
+    .limit(limit)
+    .offset(offset);
 
   return errors.map((e) => ({
     id: e.id,
@@ -247,12 +254,10 @@ export async function updateErrorGroupStatus(
 ): Promise<void> {
   const db = getClient();
 
-  await db.errorGroup.update({
-    where: {
-      siteId_fingerprint: { siteId, fingerprint },
-    },
-    data: { status },
-  });
+  await db
+    .update(errorGroups)
+    .set({ status })
+    .where(and(eq(errorGroups.siteId, siteId), eq(errorGroups.fingerprint, fingerprint)));
 }
 
 /**
@@ -266,40 +271,42 @@ export async function deleteOldErrors(
   const db = getClient();
 
   // Delete old error instances
-  const deletedErrors = await db.error.deleteMany({
-    where: {
-      siteId,
-      timestamp: { lt: olderThan },
-    },
-  });
+  const deletedErrors = await db
+    .delete(analyticsErrors)
+    .where(and(eq(analyticsErrors.siteId, siteId), lt(analyticsErrors.timestamp, olderThan)))
+    .returning({ id: analyticsErrors.id });
 
-  // Delete error groups with no remaining errors
-  // First, get fingerprints that still have errors
-  const remainingFingerprints = await db.error.groupBy({
-    by: ["fingerprint"],
-    where: { siteId },
-  });
+  // Get fingerprints that still have errors
+  const remainingFingerprints = await db
+    .select({ fingerprint: analyticsErrors.fingerprint })
+    .from(analyticsErrors)
+    .where(eq(analyticsErrors.siteId, siteId))
+    .groupBy(analyticsErrors.fingerprint);
+
   const activeFingerprints = new Set(remainingFingerprints.map((r) => r.fingerprint));
 
-  // Delete groups not in active fingerprints
-  const allGroups = await db.errorGroup.findMany({
-    where: { siteId },
-    select: { fingerprint: true },
-  });
+  // Get all groups for this site
+  const allGroups = await db
+    .select({ id: errorGroups.id, fingerprint: errorGroups.fingerprint })
+    .from(errorGroups)
+    .where(eq(errorGroups.siteId, siteId));
 
-  const groupsToDelete = allGroups
+  // Find groups to delete
+  const groupIdsToDelete = allGroups
     .filter((g) => !activeFingerprints.has(g.fingerprint))
-    .map((g) => g.fingerprint);
+    .map((g) => g.id);
 
-  const deletedGroups = await db.errorGroup.deleteMany({
-    where: {
-      siteId,
-      fingerprint: { in: groupsToDelete },
-    },
-  });
+  let deletedGroupCount = 0;
+  if (groupIdsToDelete.length > 0) {
+    const deletedGroups = await db
+      .delete(errorGroups)
+      .where(inArray(errorGroups.id, groupIdsToDelete))
+      .returning({ id: errorGroups.id });
+    deletedGroupCount = deletedGroups.length;
+  }
 
   return {
-    deletedErrors: deletedErrors.count,
-    deletedGroups: deletedGroups.count,
+    deletedErrors: deletedErrors.length,
+    deletedGroups: deletedGroupCount,
   };
 }

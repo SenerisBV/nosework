@@ -1,4 +1,6 @@
 import { getClient } from "./client.js";
+import { pageViews } from "./schema.js";
+import { eq, and, gte, lte, count, countDistinct, desc, asc, sql } from "drizzle-orm";
 import type {
   QueryOptions,
   PaginatedQueryOptions,
@@ -13,60 +15,55 @@ import type {
   PageFlow,
 } from "./types.js";
 
-interface WhereClause {
-  siteId: string;
-  timestamp: { gte: Date; lte: Date };
-  isBot: boolean;
-}
-
-function buildWhere(options: QueryOptions): WhereClause {
-  return {
-    siteId: options.siteId,
-    timestamp: {
-      gte: options.startDate,
-      lte: options.endDate,
-    },
-    isBot: false, // Exclude bots by default
-  };
+function buildWhereConditions(options: QueryOptions) {
+  return and(
+    eq(pageViews.siteId, options.siteId),
+    gte(pageViews.timestamp, options.startDate),
+    lte(pageViews.timestamp, options.endDate),
+    eq(pageViews.isBot, false)
+  );
 }
 
 export async function getStats(options: QueryOptions): Promise<Stats> {
   const db = getClient();
-  const where = buildWhere(options);
+  const where = buildWhereConditions(options);
 
   // Get page views count
-  const pageViews = await db.pageView.count({ where });
+  const [pageViewCount] = await db
+    .select({ count: count() })
+    .from(pageViews)
+    .where(where);
 
   // Get unique visitors
-  const visitorsResult = await db.pageView.groupBy({
-    by: ["visitorHash"],
-    where,
-  });
-  const visitors = visitorsResult.length;
+  const [visitorCount] = await db
+    .select({ count: countDistinct(pageViews.visitorHash) })
+    .from(pageViews)
+    .where(where);
 
   // Get unique sessions
-  const sessionsResult = await db.pageView.groupBy({
-    by: ["sessionId"],
-    where,
-  });
-  const sessions = sessionsResult.length;
+  const [sessionCount] = await db
+    .select({ count: countDistinct(pageViews.sessionId) })
+    .from(pageViews)
+    .where(where);
 
   // Calculate bounce rate (sessions with only 1 page view)
-  const sessionPageCounts = await db.pageView.groupBy({
-    by: ["sessionId"],
-    where,
-    _count: { id: true },
-  });
+  const sessionPageCounts = await db
+    .select({
+      sessionId: pageViews.sessionId,
+      pageCount: count(),
+    })
+    .from(pageViews)
+    .where(where)
+    .groupBy(pageViews.sessionId);
 
-  const bouncedSessions = sessionPageCounts.filter(
-    (s) => s._count.id === 1
-  ).length;
-  const bounceRate = sessions > 0 ? (bouncedSessions / sessions) * 100 : 0;
+  const totalSessions = sessionPageCounts.length;
+  const bouncedSessions = sessionPageCounts.filter((s) => s.pageCount === 1).length;
+  const bounceRate = totalSessions > 0 ? (bouncedSessions / totalSessions) * 100 : 0;
 
   return {
-    pageViews,
-    visitors,
-    sessions,
+    pageViews: pageViewCount?.count ?? 0,
+    visitors: visitorCount?.count ?? 0,
+    sessions: sessionCount?.count ?? 0,
     bounceRate: Math.round(bounceRate * 100) / 100,
   };
 }
@@ -75,153 +72,113 @@ export async function getTopPages(
   options: PaginatedQueryOptions
 ): Promise<TopPage[]> {
   const db = getClient();
-  const where = buildWhere(options);
+  const where = buildWhereConditions(options);
   const limit = options.limit ?? 10;
 
-  // Group by pathname and count
-  const results = await db.pageView.groupBy({
-    by: ["pathname"],
-    where,
-    _count: { id: true },
-  });
-
-  // Get unique visitors per page (need separate query)
-  const pageVisitors = await Promise.all(
-    results.map(async (r) => {
-      const uniqueVisitors = await db.pageView.groupBy({
-        by: ["visitorHash"],
-        where: { ...where, pathname: r.pathname },
-      });
-      return {
-        pathname: r.pathname,
-        pageViews: r._count.id,
-        visitors: uniqueVisitors.length,
-      };
+  // Group by pathname and count page views + unique visitors
+  const results = await db
+    .select({
+      pathname: pageViews.pathname,
+      pageViewCount: count(),
+      visitorCount: countDistinct(pageViews.visitorHash),
     })
-  );
+    .from(pageViews)
+    .where(where)
+    .groupBy(pageViews.pathname)
+    .orderBy(desc(count()))
+    .limit(limit);
 
-  // Sort by page views and limit
-  return pageVisitors
-    .sort((a, b) => b.pageViews - a.pageViews)
-    .slice(0, limit);
+  return results.map((r) => ({
+    pathname: r.pathname,
+    pageViews: r.pageViewCount,
+    visitors: r.visitorCount,
+  }));
 }
 
 export async function getLocations(
   options: PaginatedQueryOptions
 ): Promise<LocationData[]> {
   const db = getClient();
-  const where = buildWhere(options);
+  const where = buildWhereConditions(options);
   const limit = options.limit ?? 20;
 
-  // Group by country and city
-  const results = await db.pageView.groupBy({
-    by: ["country", "countryCode", "city"],
-    where,
-    _count: { id: true },
-  });
-
-  // Get unique visitors per location
-  const locationData = await Promise.all(
-    results.map(async (r) => {
-      const uniqueVisitors = await db.pageView.groupBy({
-        by: ["visitorHash"],
-        where: {
-          ...where,
-          country: r.country,
-          city: r.city,
-        },
-      });
-      return {
-        country: r.country,
-        countryCode: r.countryCode,
-        city: r.city,
-        pageViews: r._count.id,
-        visitors: uniqueVisitors.length,
-      };
+  const results = await db
+    .select({
+      country: pageViews.country,
+      countryCode: pageViews.countryCode,
+      city: pageViews.city,
+      pageViewCount: count(),
+      visitorCount: countDistinct(pageViews.visitorHash),
     })
-  );
+    .from(pageViews)
+    .where(where)
+    .groupBy(pageViews.country, pageViews.countryCode, pageViews.city)
+    .orderBy(desc(count()))
+    .limit(limit);
 
-  // Sort by page views and limit
-  return locationData
-    .sort((a, b) => b.pageViews - a.pageViews)
-    .slice(0, limit);
+  return results.map((r) => ({
+    country: r.country,
+    countryCode: r.countryCode,
+    city: r.city,
+    pageViews: r.pageViewCount,
+    visitors: r.visitorCount,
+  }));
 }
 
 export async function getReferrers(
   options: PaginatedQueryOptions
 ): Promise<ReferrerData[]> {
   const db = getClient();
-  const where = buildWhere(options);
+  const where = buildWhereConditions(options);
   const limit = options.limit ?? 10;
 
-  // Group by referrer
-  const results = await db.pageView.groupBy({
-    by: ["referrer"],
-    where,
-    _count: { id: true },
-  });
-
-  // Get unique visitors per referrer
-  const referrerData = await Promise.all(
-    results.map(async (r) => {
-      const uniqueVisitors = await db.pageView.groupBy({
-        by: ["visitorHash"],
-        where: { ...where, referrer: r.referrer },
-      });
-      return {
-        referrer: r.referrer,
-        pageViews: r._count.id,
-        visitors: uniqueVisitors.length,
-      };
+  const results = await db
+    .select({
+      referrer: pageViews.referrer,
+      pageViewCount: count(),
+      visitorCount: countDistinct(pageViews.visitorHash),
     })
-  );
+    .from(pageViews)
+    .where(where)
+    .groupBy(pageViews.referrer)
+    .orderBy(desc(count()))
+    .limit(limit);
 
-  // Sort by page views and limit
-  return referrerData
-    .sort((a, b) => b.pageViews - a.pageViews)
-    .slice(0, limit);
+  return results.map((r) => ({
+    referrer: r.referrer,
+    pageViews: r.pageViewCount,
+    visitors: r.visitorCount,
+  }));
 }
 
 export async function getDevices(
   options: PaginatedQueryOptions
 ): Promise<DeviceData[]> {
   const db = getClient();
-  const where = buildWhere(options);
+  const where = buildWhereConditions(options);
   const limit = options.limit ?? 10;
 
-  // Group by device, browser, os
-  const results = await db.pageView.groupBy({
-    by: ["device", "browser", "os"],
-    where,
-    _count: { id: true },
-  });
-
-  // Get unique visitors per device combo
-  const deviceData = await Promise.all(
-    results.map(async (r) => {
-      const uniqueVisitors = await db.pageView.groupBy({
-        by: ["visitorHash"],
-        where: {
-          ...where,
-          device: r.device,
-          browser: r.browser,
-          os: r.os,
-        },
-      });
-      return {
-        device: r.device,
-        browser: r.browser,
-        os: r.os,
-        pageViews: r._count.id,
-        visitors: uniqueVisitors.length,
-      };
+  const results = await db
+    .select({
+      device: pageViews.device,
+      browser: pageViews.browser,
+      os: pageViews.os,
+      pageViewCount: count(),
+      visitorCount: countDistinct(pageViews.visitorHash),
     })
-  );
+    .from(pageViews)
+    .where(where)
+    .groupBy(pageViews.device, pageViews.browser, pageViews.os)
+    .orderBy(desc(count()))
+    .limit(limit);
 
-  // Sort by page views and limit
-  return deviceData
-    .sort((a, b) => b.pageViews - a.pageViews)
-    .slice(0, limit);
+  return results.map((r) => ({
+    device: r.device,
+    browser: r.browser,
+    os: r.os,
+    pageViews: r.pageViewCount,
+    visitors: r.visitorCount,
+  }));
 }
 
 export interface TimeSeriesDataPoint {
@@ -234,20 +191,23 @@ export async function getTimeSeries(
   options: QueryOptions & { interval?: "hour" | "day" | "week" | "month" }
 ): Promise<TimeSeriesDataPoint[]> {
   const db = getClient();
-  const where = buildWhere(options);
+  const where = buildWhereConditions(options);
   const interval = options.interval ?? "day";
 
   // Get all page views in range
-  const pageViews = await db.pageView.findMany({
-    where,
-    select: { timestamp: true, visitorHash: true },
-    orderBy: { timestamp: "asc" },
-  });
+  const results = await db
+    .select({
+      timestamp: pageViews.timestamp,
+      visitorHash: pageViews.visitorHash,
+    })
+    .from(pageViews)
+    .where(where)
+    .orderBy(asc(pageViews.timestamp));
 
   // Group by interval
   const groups = new Map<string, { views: number; visitors: Set<string> }>();
 
-  for (const pv of pageViews) {
+  for (const pv of results) {
     const key = formatDateKey(pv.timestamp, interval);
     const group = groups.get(key) ?? { views: 0, visitors: new Set() };
     group.views++;
@@ -296,18 +256,21 @@ export async function getSessionStats(
   options: QueryOptions
 ): Promise<SessionStats> {
   const db = getClient();
-  const where = buildWhere(options);
+  const where = buildWhereConditions(options);
 
   // Get all page views grouped by session
-  const pageViews = await db.pageView.findMany({
-    where,
-    select: { sessionId: true, timestamp: true },
-    orderBy: { timestamp: "asc" },
-  });
+  const results = await db
+    .select({
+      sessionId: pageViews.sessionId,
+      timestamp: pageViews.timestamp,
+    })
+    .from(pageViews)
+    .where(where)
+    .orderBy(asc(pageViews.timestamp));
 
   // Group page views by session
   const sessions = new Map<string, Date[]>();
-  for (const pv of pageViews) {
+  for (const pv of results) {
     const timestamps = sessions.get(pv.sessionId) ?? [];
     timestamps.push(pv.timestamp);
     sessions.set(pv.sessionId, timestamps);
@@ -333,9 +296,7 @@ export async function getSessionStats(
 
     if (pageCount === 1) {
       bounceCount++;
-      // Single page view = 0 duration
     } else {
-      // Duration = last timestamp - first timestamp
       const sorted = timestamps.sort((a, b) => a.getTime() - b.getTime());
       const firstTimestamp = sorted[0];
       const lastTimestamp = sorted[sorted.length - 1];
@@ -361,19 +322,22 @@ export async function getEntryPages(
   options: PaginatedQueryOptions
 ): Promise<EntryExitPage[]> {
   const db = getClient();
-  const where = buildWhere(options);
+  const where = buildWhereConditions(options);
   const limit = options.limit ?? 10;
 
-  // Get all page views with session info
-  const pageViews = await db.pageView.findMany({
-    where,
-    select: { sessionId: true, pathname: true, timestamp: true },
-    orderBy: { timestamp: "asc" },
-  });
+  const results = await db
+    .select({
+      sessionId: pageViews.sessionId,
+      pathname: pageViews.pathname,
+      timestamp: pageViews.timestamp,
+    })
+    .from(pageViews)
+    .where(where)
+    .orderBy(asc(pageViews.timestamp));
 
   // Find first page view per session
   const sessionFirstPages = new Map<string, string>();
-  for (const pv of pageViews) {
+  for (const pv of results) {
     if (!sessionFirstPages.has(pv.sessionId)) {
       sessionFirstPages.set(pv.sessionId, pv.pathname);
     }
@@ -387,7 +351,6 @@ export async function getEntryPages(
 
   const totalSessions = sessionFirstPages.size;
 
-  // Convert to array and sort
   return Array.from(entryPageCounts.entries())
     .map(([pathname, count]) => ({
       pathname,
@@ -405,19 +368,22 @@ export async function getExitPages(
   options: PaginatedQueryOptions
 ): Promise<EntryExitPage[]> {
   const db = getClient();
-  const where = buildWhere(options);
+  const where = buildWhereConditions(options);
   const limit = options.limit ?? 10;
 
-  // Get all page views with session info
-  const pageViews = await db.pageView.findMany({
-    where,
-    select: { sessionId: true, pathname: true, timestamp: true },
-    orderBy: { timestamp: "desc" }, // Descending to get last pages first
-  });
+  const results = await db
+    .select({
+      sessionId: pageViews.sessionId,
+      pathname: pageViews.pathname,
+      timestamp: pageViews.timestamp,
+    })
+    .from(pageViews)
+    .where(where)
+    .orderBy(desc(pageViews.timestamp));
 
   // Find last page view per session
   const sessionLastPages = new Map<string, string>();
-  for (const pv of pageViews) {
+  for (const pv of results) {
     if (!sessionLastPages.has(pv.sessionId)) {
       sessionLastPages.set(pv.sessionId, pv.pathname);
     }
@@ -431,7 +397,6 @@ export async function getExitPages(
 
   const totalSessions = sessionLastPages.size;
 
-  // Convert to array and sort
   return Array.from(exitPageCounts.entries())
     .map(([pathname, count]) => ({
       pathname,
@@ -449,20 +414,23 @@ export async function getPageFlows(
   options: PaginatedQueryOptions & { maxPathLength?: number }
 ): Promise<PageFlow[]> {
   const db = getClient();
-  const where = buildWhere(options);
+  const where = buildWhereConditions(options);
   const limit = options.limit ?? 10;
   const maxPathLength = options.maxPathLength ?? 5;
 
-  // Get all page views with session info
-  const pageViews = await db.pageView.findMany({
-    where,
-    select: { sessionId: true, pathname: true, timestamp: true },
-    orderBy: { timestamp: "asc" },
-  });
+  const results = await db
+    .select({
+      sessionId: pageViews.sessionId,
+      pathname: pageViews.pathname,
+      timestamp: pageViews.timestamp,
+    })
+    .from(pageViews)
+    .where(where)
+    .orderBy(asc(pageViews.timestamp));
 
   // Build paths per session
   const sessionPaths = new Map<string, string[]>();
-  for (const pv of pageViews) {
+  for (const pv of results) {
     const path = sessionPaths.get(pv.sessionId) ?? [];
     // Only add if different from last (avoid duplicates from refreshes)
     if (path.length === 0 || path[path.length - 1] !== pv.pathname) {
@@ -481,7 +449,6 @@ export async function getPageFlows(
 
   const totalSessions = sessionPaths.size;
 
-  // Convert to array and sort
   return Array.from(pathCounts.entries())
     .map(([key, count]) => ({
       path: JSON.parse(key) as string[],
@@ -499,24 +466,23 @@ export async function getSessions(
   options: PaginatedQueryOptions
 ): Promise<SessionData[]> {
   const db = getClient();
-  const where = buildWhere(options);
+  const where = buildWhereConditions(options);
   const limit = options.limit ?? 50;
   const offset = options.offset ?? 0;
 
-  // Get all page views
-  const pageViews = await db.pageView.findMany({
-    where,
-    select: {
-      sessionId: true,
-      visitorHash: true,
-      pathname: true,
-      timestamp: true,
-      country: true,
-      device: true,
-      browser: true,
-    },
-    orderBy: { timestamp: "asc" },
-  });
+  const results = await db
+    .select({
+      sessionId: pageViews.sessionId,
+      visitorHash: pageViews.visitorHash,
+      pathname: pageViews.pathname,
+      timestamp: pageViews.timestamp,
+      country: pageViews.country,
+      device: pageViews.device,
+      browser: pageViews.browser,
+    })
+    .from(pageViews)
+    .where(where)
+    .orderBy(asc(pageViews.timestamp));
 
   // Group by session
   const sessionMap = new Map<
@@ -530,7 +496,7 @@ export async function getSessions(
     }
   >();
 
-  for (const pv of pageViews) {
+  for (const pv of results) {
     const existing = sessionMap.get(pv.sessionId);
     if (existing) {
       existing.pages.push({ pathname: pv.pathname, timestamp: pv.timestamp });
@@ -554,7 +520,6 @@ export async function getSessions(
     const firstPage = sortedPages[0];
     const lastPage = sortedPages[sortedPages.length - 1];
 
-    // Skip if somehow we have no pages (shouldn't happen)
     if (!firstPage || !lastPage) continue;
 
     const startTime = firstPage.timestamp;
@@ -577,37 +542,8 @@ export async function getSessions(
     });
   }
 
-  // Sort by startTime descending (most recent first) and paginate
+  // Sort by startTime descending and paginate
   return sessions
     .sort((a, b) => b.startTime.getTime() - a.startTime.getTime())
     .slice(offset, offset + limit);
-}
-
-// Get or create a site
-export async function getOrCreateSite(
-  domain: string,
-  name?: string
-): Promise<{ id: string; name: string; domain: string }> {
-  const db = getClient();
-
-  let site = await db.site.findUnique({ where: { domain } });
-
-  if (!site) {
-    site = await db.site.create({
-      data: {
-        domain,
-        name: name ?? domain,
-      },
-    });
-  }
-
-  return site;
-}
-
-// List all sites
-export async function listSites(): Promise<
-  { id: string; name: string; domain: string; createdAt: Date }[]
-> {
-  const db = getClient();
-  return db.site.findMany({ orderBy: { name: "asc" } });
 }

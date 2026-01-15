@@ -4,16 +4,16 @@
 
 ---
 
-## Current Status: Feature Complete (Pre-publish)
+## Current Status: Published
 
-Both packages are feature-complete and ready for publishing to npm.
+Both packages are published to npm and ready for integration.
 
 ### Packages
 
-| Package | Status | Location |
-|---------|--------|----------|
-| `@seneris/nosework` | ✅ Ready | `/nosework` |
-| `@seneris/nosework-llm` | ✅ Ready | `/nosework-llm` |
+| Package | Status | npm |
+|---------|--------|-----|
+| `@seneris/nosework` | ✅ Published | [npm](https://www.npmjs.com/package/@seneris/nosework) |
+| `@seneris/nosework-llm` | ✅ Published | [npm](https://www.npmjs.com/package/@seneris/nosework-llm) |
 
 ---
 
@@ -87,7 +87,7 @@ Both packages are feature-complete and ready for publishing to npm.
 - ❌ Not tested with real traffic
 
 ### Publishing
-- ❌ Not published to npm yet
+- ✅ Published to npm
 - ❌ No CI/CD pipeline
 
 ### Production
@@ -96,14 +96,14 @@ Both packages are feature-complete and ready for publishing to npm.
 - ❌ No logging integration
 
 ### Dashboard
-- ❌ No pre-built dashboard (requirements documented)
-- ❌ Planned for MoopySuite OAuth app
+- ❌ No pre-built dashboard (requirements documented in `DASHBOARD_REQUIREMENTS.md`)
+- ⏳ Planned for MoopySuite admin area
 
 ---
 
 ## MoopySuite Integration
 
-**Status:** Schema added, pending migration
+**Status:** ✅ Schema added, migration run
 
 The analytics tables have been added to MoopySuite's database schema. This enables:
 - Single database for auth + apps + analytics
@@ -131,10 +131,7 @@ await trackPageView({
 
 ### Migration
 
-Run in MoopySuite directory:
-```bash
-npx prisma migrate dev --name add_analytics_tables
-```
+✅ Migration complete - analytics tables created in MoopySuite database.
 
 ---
 
@@ -204,12 +201,12 @@ nosework-llm/                      # @seneris/nosework-llm
 
 ## Next Steps
 
-1. **Choose database strategy** - Separate vs MoopySuite integration
-2. **Add schema to MoopySuite** - If integrating
-3. **Run migrations** - Create analytics tables
-4. **Publish to npm** - See `docs/PUBLISHING.md`
-5. **Integrate into first app** - Add tracking
-6. **Build dashboard** - In MoopySuite
+1. ✅ ~~Choose database strategy~~ - MoopySuite integration
+2. ✅ ~~Add schema to MoopySuite~~
+3. ✅ ~~Run migrations~~
+4. ✅ ~~Publish to npm~~
+5. ⏳ **Integrate into first app** - See `docs/INTEGRATION.md`
+6. ⏳ **Build dashboard** - In MoopySuite admin area
 
 ---
 
@@ -220,6 +217,7 @@ nosework-llm/                      # @seneris/nosework-llm
 | `OVERVIEW.md` | What nosework is and why |
 | `ARCHITECTURE.md` | Technical design and data flow |
 | `ROADMAP.md` | Feature phases and status |
+| `INTEGRATION.md` | Step-by-step guide for adding to your app |
 | `PUBLISHING.md` | How to publish to npm |
 | `DASHBOARD_REQUIREMENTS.md` | Dashboard UI specifications |
 | `MOOPYSUITE_INTEGRATION.md` | Schema additions for MoopySuite |

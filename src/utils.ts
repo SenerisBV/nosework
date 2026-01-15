@@ -1,5 +1,7 @@
 import { createHash, randomBytes } from "crypto";
 import { getClient } from "./client.js";
+import { dailySalts } from "./schema.js";
+import { eq, lt } from "drizzle-orm";
 import type { VisitorInfo } from "./types.js";
 
 // Bot patterns to detect
@@ -57,29 +59,34 @@ function hash(input: string): string {
 
 async function getDailySalt(date: Date): Promise<string> {
   const db = getClient();
-  const dateOnly = new Date(date.toISOString().split("T")[0] + "T00:00:00.000Z");
+  // Format date as YYYY-MM-DD string for the date column
+  const dateStr = date.toISOString().split("T")[0]!;
 
   // Try to get existing salt
-  let dailySalt = await db.dailySalt.findUnique({
-    where: { date: dateOnly },
-  });
+  const [existingSalt] = await db
+    .select()
+    .from(dailySalts)
+    .where(eq(dailySalts.date, dateStr))
+    .limit(1);
 
-  // Create if doesn't exist
-  if (!dailySalt) {
-    const salt = randomBytes(32).toString("hex");
-    try {
-      dailySalt = await db.dailySalt.create({
-        data: { date: dateOnly, salt },
-      });
-    } catch {
-      // Race condition - another request created it
-      dailySalt = await db.dailySalt.findUnique({
-        where: { date: dateOnly },
-      });
-    }
+  if (existingSalt) {
+    return existingSalt.salt;
   }
 
-  return dailySalt?.salt ?? randomBytes(32).toString("hex");
+  // Create if doesn't exist
+  const salt = randomBytes(32).toString("hex");
+  try {
+    await db.insert(dailySalts).values({ date: dateStr, salt });
+    return salt;
+  } catch {
+    // Race condition - another request created it, try to fetch again
+    const [retry] = await db
+      .select()
+      .from(dailySalts)
+      .where(eq(dailySalts.date, dateStr))
+      .limit(1);
+    return retry?.salt ?? salt;
+  }
 }
 
 export async function getVisitorInfo(
@@ -119,10 +126,12 @@ export async function cleanupOldSalts(): Promise<number> {
   const db = getClient();
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  const dateStr = sevenDaysAgo.toISOString().split("T")[0]!;
 
-  const result = await db.dailySalt.deleteMany({
-    where: { date: { lt: sevenDaysAgo } },
-  });
+  const deleted = await db
+    .delete(dailySalts)
+    .where(lt(dailySalts.date, dateStr))
+    .returning({ date: dailySalts.date });
 
-  return result.count;
+  return deleted.length;
 }

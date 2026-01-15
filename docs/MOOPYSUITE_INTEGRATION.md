@@ -288,12 +288,12 @@ npx prisma migrate dev --name add_analytics_tables
 
 ### Consumer Apps (no migrations)
 ```bash
-# .env - already configured for OAuth!
-MOOPY_CLIENT_ID="my-app-name"  # Use as siteId for analytics
-DATABASE_URL="postgresql://..."  # Same URL as MoopySuite
+# .env
+MOOPY_CLIENT_ID="my-app-name"  # Use as siteId for analytics (already configured for OAuth)
+ANALYTICS_DATABASE_URL="postgresql://..."  # Same connection string as MoopySuite's DATABASE_URL
 ```
 
-Apps already have `MOOPY_CLIENT_ID` configured for OAuth, so no new env vars are needed.
+The nosework package uses `ANALYTICS_DATABASE_URL` to avoid conflicts with your app's own `DATABASE_URL`. For MoopySuite apps, set it to the same connection string as MoopySuite.
 
 ## Configuring nosework Packages
 

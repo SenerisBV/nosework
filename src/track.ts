@@ -1,4 +1,5 @@
 import { getClient } from "./client.js";
+import { pageViews, events } from "./schema.js";
 import { parseUserAgent } from "./ua.js";
 import { isBot, getVisitorInfo, extractPathname } from "./utils.js";
 import type { TrackPageViewOptions, TrackEventOptions } from "./types.js";
@@ -50,26 +51,24 @@ export async function trackPageView(
 
   const db = getClient();
 
-  await db.pageView.create({
-    data: {
-      siteId,
-      url,
-      pathname,
-      referrer: cleanReferrer,
-      visitorHash,
-      sessionId,
-      country: country ?? null,
-      countryCode: countryCode ?? null,
-      region: region ?? null,
-      city: city ?? null,
-      browser: ua.browser,
-      browserVer: ua.browserVer,
-      os: ua.os,
-      osVer: ua.osVer,
-      device: ua.device,
-      userId,
-      isBot: isBotRequest,
-    },
+  await db.insert(pageViews).values({
+    siteId,
+    url,
+    pathname,
+    referrer: cleanReferrer,
+    visitorHash,
+    sessionId,
+    country: country ?? null,
+    countryCode: countryCode ?? null,
+    region: region ?? null,
+    city: city ?? null,
+    browser: ua.browser,
+    browserVer: ua.browserVer,
+    os: ua.os,
+    osVer: ua.osVer,
+    device: ua.device,
+    userId: userId ?? null,
+    isBot: isBotRequest,
   });
 }
 
@@ -85,15 +84,13 @@ export async function trackEvent(options: TrackEventOptions): Promise<void> {
 
   const db = getClient();
 
-  await db.event.create({
-    data: {
-      siteId,
-      name,
-      properties: properties as object | undefined,
-      url,
-      visitorHash,
-      sessionId,
-      userId,
-    },
+  await db.insert(events).values({
+    siteId,
+    name,
+    properties: properties ?? null,
+    url: url ?? null,
+    visitorHash,
+    sessionId,
+    userId: userId ?? null,
   });
 }

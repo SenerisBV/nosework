@@ -21,8 +21,6 @@ export {
   getReferrers,
   getDevices,
   getTimeSeries,
-  getOrCreateSite,
-  listSites,
   // Session analytics
   getSessionStats,
   getEntryPages,
@@ -30,6 +28,9 @@ export {
   getPageFlows,
   getSessions,
 } from "./query.js";
+
+// Schema exports (for advanced use cases)
+export * from "./schema.js";
 
 // Client utilities
 export { getClient, disconnect } from "./client.js";

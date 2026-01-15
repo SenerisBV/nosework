@@ -105,19 +105,24 @@ All derived from existing PageView data (no schema changes required).
 
 ---
 
-## Phase 6: LLM Analytics (Separate Package)
+## Phase 6: LLM Analytics ✅ COMPLETE
 
-**Goal:** Track LLM API usage across apps (new `@seneris/nosework-llm` package).
+**Goal:** Track LLM API usage across apps (`@seneris/nosework-llm` package).
 
 ### Tracking
-- [ ] `trackLLMCall()` - Record model, tokens, latency, cost
-- [ ] Built-in pricing for OpenAI/Anthropic/Google models
-- [ ] Conversation grouping via conversationId
+- [x] `trackLLMCall()` - Record model, tokens, latency, cost
+- [x] `withLLMTracking()` - Wrapper for automatic tracking
+- [x] Built-in pricing for 50+ models (OpenAI, Anthropic, Google, Mistral, etc.)
+- [x] Conversation grouping via conversationId
+- [x] Cost estimation
 
 ### Queries
-- [ ] `getLLMStats()` - Total calls, tokens, cost, error rate
-- [ ] `getLLMUsageByModel()` - Breakdown by model
-- [ ] `getLLMTimeSeries()` - Usage over time
+- [x] `getLLMStats()` - Total calls, tokens, cost, error rate
+- [x] `getLLMUsageByModel()` - Breakdown by model
+- [x] `getLLMTimeSeries()` - Usage over time
+- [x] `getLLMCalls()` - Individual call list
+- [x] `getConversation()` - Calls by conversation ID
+- [x] `getLLMUsageByUser()` - Per-user breakdown
 
 ---
 

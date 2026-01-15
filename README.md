@@ -19,7 +19,7 @@ Privacy-focused, self-hosted analytics for your app suite.
 └──────┬──────┘  └──────┬──────┘  └──────┬──────┘
        │                │                │
        │  import { trackPageView }       │
-       │  from 'nosework'                │
+       │  from '@seneris/nosework'       │
        │                │                │
        └────────────────┼────────────────┘
                         │
@@ -81,7 +81,7 @@ If you're not using Vercel, you have options:
 ### 1. Install
 
 ```bash
-bun add nosework
+bun add @seneris/nosework
 ```
 
 ### 2. Set Environment Variables
@@ -89,26 +89,23 @@ bun add nosework
 Add to your `.env`:
 
 ```env
-DATABASE_URL="postgresql://user:pass@host/dbname"
+ANALYTICS_DATABASE_URL="postgresql://user:pass@host/dbname"
 ANALYTICS_SITE_ID="my-app"  # Unique identifier for this app
 ```
 
-**MoopySuite Users:** If you're using MoopySuite OAuth, use your existing `MOOPY_CLIENT_ID` as the site identifier - no new env var needed! See [MoopySuite Integration](./docs/MOOPYSUITE_INTEGRATION.md).
-
-### 3. Run Database Migration
-
-First time only (or when updating nosework):
-
-```bash
-bunx prisma migrate deploy --schema=./node_modules/nosework/prisma/schema.prisma
+**MoopySuite Users:** Your analytics tables are in the MoopySuite database, so use:
+```env
+ANALYTICS_DATABASE_URL="${DATABASE_URL}"  # Same as MoopySuite DB
+# No ANALYTICS_SITE_ID needed - use MOOPY_CLIENT_ID instead
 ```
+See [MoopySuite Integration](./docs/MOOPYSUITE_INTEGRATION.md).
 
-### 4. Add Tracking Endpoint
+### 3. Add Tracking Endpoint
 
 Create `app/api/analytics/track/route.ts`:
 
 ```typescript
-import { trackPageView } from 'nosework';
+import { trackPageView } from '@seneris/nosework';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
@@ -137,7 +134,7 @@ export async function POST(request: NextRequest) {
 }
 ```
 
-### 5. Add Client Component
+### 4. Add Client Component
 
 Create `components/Analytics.tsx`:
 
@@ -177,7 +174,7 @@ export function Analytics() {
 }
 ```
 
-### 6. Add to Layout
+### 5. Add to Layout
 
 In `app/layout.tsx`:
 
@@ -210,7 +207,7 @@ If you prefer not to use a client component, you can track in Next.js middleware
 Create `middleware.ts`:
 
 ```typescript
-import { trackPageView } from 'nosework';
+import { trackPageView } from '@seneris/nosework';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
@@ -261,7 +258,7 @@ export const config = {
 Beyond page views, you can track custom events:
 
 ```typescript
-import { trackEvent } from 'nosework';
+import { trackEvent } from '@seneris/nosework';
 
 // In an API route or server action
 await trackEvent({
@@ -289,7 +286,7 @@ Common events to track:
 ### Basic Stats
 
 ```typescript
-import { getStats } from 'nosework';
+import { getStats } from '@seneris/nosework';
 
 const stats = await getStats({
   siteId: 'my-app',
@@ -309,7 +306,7 @@ const stats = await getStats({
 ### Top Pages
 
 ```typescript
-import { getTopPages } from 'nosework';
+import { getTopPages } from '@seneris/nosework';
 
 const pages = await getTopPages({
   siteId: 'my-app',
@@ -329,7 +326,7 @@ const pages = await getTopPages({
 ### Location Breakdown
 
 ```typescript
-import { getLocations } from 'nosework';
+import { getLocations } from '@seneris/nosework';
 
 const locations = await getLocations({
   siteId: 'my-app',
@@ -349,7 +346,7 @@ const locations = await getLocations({
 ### Traffic Sources
 
 ```typescript
-import { getReferrers } from 'nosework';
+import { getReferrers } from '@seneris/nosework';
 
 const referrers = await getReferrers({
   siteId: 'my-app',
@@ -362,7 +359,7 @@ const referrers = await getReferrers({
 ### Device/Browser Breakdown
 
 ```typescript
-import { getDevices } from 'nosework';
+import { getDevices } from '@seneris/nosework';
 
 const devices = await getDevices({
   siteId: 'my-app',
@@ -374,7 +371,7 @@ const devices = await getDevices({
 ### Time Series (for charts)
 
 ```typescript
-import { getTimeSeries } from 'nosework';
+import { getTimeSeries } from '@seneris/nosework';
 
 const data = await getTimeSeries({
   siteId: 'my-app',
@@ -389,18 +386,6 @@ const data = await getTimeSeries({
 //   { date: '2024-01-02', pageViews: 120, visitors: 60 },
 //   ...
 // ]
-```
-
-### Site Management
-
-```typescript
-import { listSites, getOrCreateSite } from 'nosework';
-
-// List all tracked sites
-const sites = await listSites();
-
-// Get or create a site (useful for initial setup)
-const site = await getOrCreateSite('example.com', 'My Example Site');
 ```
 
 ---
@@ -495,14 +480,12 @@ interface PaginatedQueryOptions extends QueryOptions {
 | `getReferrers(options)` | `[{ referrer, pageViews, visitors }]` |
 | `getDevices(options)` | `[{ device, browser, os, pageViews, visitors }]` |
 | `getTimeSeries(options)` | `[{ date, pageViews, visitors }]` |
-| `listSites()` | `[{ id, name, domain, createdAt }]` |
-| `getOrCreateSite(domain, name?)` | `{ id, name, domain }` |
 
 ### Utility Functions
 
 | Function | Description |
 |----------|-------------|
-| `getClient()` | Get the Prisma client for custom queries |
+| `getClient()` | Get the Drizzle client for custom queries |
 | `disconnect()` | Disconnect from the database |
 | `isBot(userAgent)` | Check if a user-agent is a bot |
 | `parseUserAgent(ua)` | Parse a user-agent string |
@@ -512,14 +495,15 @@ interface PaginatedQueryOptions extends QueryOptions {
 
 ## Database Schema
 
-The package uses these tables (auto-created via Prisma migrations):
+The package uses these tables (created by MoopySuite migrations):
 
-- **Site** - Your tracked sites/apps
-- **PageView** - Individual page view events
-- **Event** - Custom events
-- **DailySalt** - Rotating salts for visitor hashing (privacy)
+- **page_views** - Individual page view events with location, device info
+- **events** - Custom events with properties
+- **daily_salts** - Rotating salts for visitor hashing (privacy)
+- **analytics_errors** - Individual error occurrences
+- **error_groups** - Aggregated errors by fingerprint
 
-See `prisma/schema.prisma` for the full schema.
+See `src/schema.ts` for the Drizzle schema definitions.
 
 ---
 

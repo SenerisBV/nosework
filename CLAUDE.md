@@ -43,9 +43,9 @@ Each consuming app:
 | `src/client/errors.ts` | Client-side error capture (~2KB) |
 | `src/ua.ts` | User-Agent parsing |
 | `src/utils.ts` | Visitor hashing, bot detection |
-| `src/client.ts` | Prisma client singleton |
+| `src/schema.ts` | Drizzle schema definitions |
+| `src/client.ts` | Database client singleton |
 | `src/types.ts` | TypeScript interfaces |
-| `prisma/schema.prisma` | Database schema |
 
 ## Query Functions
 
@@ -93,13 +93,9 @@ bun run build
 
 # Watch mode
 bun run dev
-
-# Generate Prisma client
-bun run db:generate
-
-# Run migrations (requires ANALYTICS_DATABASE_URL)
-bun run db:migrate
 ```
+
+Note: Database migrations are managed by MoopySuite. nosework uses Drizzle ORM which requires no code generation.
 
 ## Geolocation
 
@@ -121,20 +117,21 @@ These headers are automatically available on Vercel-hosted apps. No third-party 
 
 ## Database Schema
 
-- **Site** - Tracked sites/apps (id, name, domain)
-- **PageView** - Page view events with location, device, visitor hash
-- **Event** - Custom events with name, properties, visitor hash
-- **DailySalt** - Rotating salts for visitor hashing (privacy)
-- **Error** - Individual error occurrences with stack traces
-- **ErrorGroup** - Aggregated errors by fingerprint with counts and status
+Tables (defined in `src/schema.ts`, created by MoopySuite migrations):
+
+- **page_views** - Page view events with location, device, visitor hash
+- **events** - Custom events with name, properties, visitor hash
+- **daily_salts** - Rotating salts for visitor hashing (privacy)
+- **analytics_errors** - Individual error occurrences with stack traces
+- **error_groups** - Aggregated errors by fingerprint with counts and status
 
 ## Integration Requirements
 
 Each app that uses nosework needs:
 
 1. **Environment variables**:
-   - `ANALYTICS_DATABASE_URL` - Shared Neon DB connection string
-   - `ANALYTICS_SITE_ID` - Unique identifier for this app
+   - `ANALYTICS_DATABASE_URL` - Database connection string
+   - `MOOPY_CLIENT_ID` - Use existing OAuth client_id as siteId
 
 2. **API endpoint**: `/api/analytics/track` route that:
    - Receives `{ url, referrer }` from client
@@ -143,7 +140,7 @@ Each app that uses nosework needs:
 
 3. **Client component**: React component that fires on pathname changes
 
-See README.md for complete code examples.
+See `docs/INTEGRATION.md` for complete step-by-step guide.
 
 ## Publishing
 
@@ -157,16 +154,20 @@ npm publish --access public
 
 ## Integration with MoopySuite
 
-The analytics tables can be added to MoopySuite's database instead of a separate DB.
+**Status:** Analytics tables added to MoopySuite database, migration complete.
+
+The analytics tables live in MoopySuite's database, using `MOOPY_CLIENT_ID` (OAuth client_id) as the siteId.
 See `docs/MOOPYSUITE_INTEGRATION.md` for:
-- Schema additions
-- How App.id maps to siteId
+- Schema details
+- How MOOPY_CLIENT_ID maps to siteId
 - Dashboard integration
 - Query examples with user joins
 
 ## Dependencies
 
-- `@prisma/client` - Database ORM
+- `drizzle-orm` - Lightweight TypeScript ORM (no codegen required)
+- `postgres` - PostgreSQL driver
 - `ua-parser-js` - User-Agent parsing
 
 No GeoIP dependencies - uses Vercel headers instead.
+No postinstall scripts - works immediately after install.

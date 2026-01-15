@@ -1,37 +1,50 @@
-import { PrismaClient } from "@prisma/client";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
+import * as schema from "./schema.js";
 
 declare global {
   // eslint-disable-next-line no-var
-  var __noseworkPrisma: PrismaClient | undefined;
+  var __noseworkDb: ReturnType<typeof drizzle<typeof schema>> | undefined;
+  // eslint-disable-next-line no-var
+  var __noseworkSql: ReturnType<typeof postgres> | undefined;
 }
 
-let prismaClient: PrismaClient | null = null;
+let db: ReturnType<typeof drizzle<typeof schema>> | null = null;
+let sql: ReturnType<typeof postgres> | null = null;
 
-export function getClient(): PrismaClient {
-  if (prismaClient) {
-    return prismaClient;
+export function getClient() {
+  if (db) {
+    return db;
   }
 
-  // In development, use global to preserve client across hot reloads
+  const connectionString = process.env.ANALYTICS_DATABASE_URL;
+  if (!connectionString) {
+    throw new Error("ANALYTICS_DATABASE_URL environment variable is not set");
+  }
+
+  // In development, use global to preserve connection across hot reloads
   if (process.env.NODE_ENV === "development") {
-    if (!global.__noseworkPrisma) {
-      global.__noseworkPrisma = new PrismaClient({
-        datasourceUrl: process.env.ANALYTICS_DATABASE_URL,
-      });
+    if (!global.__noseworkSql) {
+      global.__noseworkSql = postgres(connectionString);
+      global.__noseworkDb = drizzle(global.__noseworkSql, { schema });
     }
-    prismaClient = global.__noseworkPrisma;
+    sql = global.__noseworkSql;
+    db = global.__noseworkDb!;
   } else {
-    prismaClient = new PrismaClient({
-      datasourceUrl: process.env.ANALYTICS_DATABASE_URL,
-    });
+    sql = postgres(connectionString);
+    db = drizzle(sql, { schema });
   }
 
-  return prismaClient;
+  return db;
 }
 
 export async function disconnect(): Promise<void> {
-  if (prismaClient) {
-    await prismaClient.$disconnect();
-    prismaClient = null;
+  if (sql) {
+    await sql.end();
+    sql = null;
+    db = null;
   }
 }
+
+// Re-export schema for convenience
+export { schema };
