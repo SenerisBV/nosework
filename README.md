@@ -10,6 +10,9 @@ Privacy-focused, self-hosted analytics for your app suite.
 - **Multi-site support** - Track all your apps with one shared database
 - **Full API** - Query your analytics data programmatically
 
+See [docs/PRIVACY.md](./docs/PRIVACY.md) for exactly what is collected, how
+visitors are counted without cookies, and text you can quote on a privacy page.
+
 ## Architecture
 
 ```
