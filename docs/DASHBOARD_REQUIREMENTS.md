@@ -1,6 +1,6 @@
 # Dashboard Requirements
 
-The analytics dashboard will live in the central OAuth app, providing a unified view across all tracked applications.
+The analytics dashboard is a standalone Next.js app at `stats.seneris.nl` — its own git repo, its own Vercel project — providing a unified view across all tracked applications. It is not a route inside any tracked app's codebase: since the dashboard reads *all* sites, coupling it to one tracked app's repo would make no sense.
 
 ## Overview
 
@@ -204,8 +204,12 @@ The dashboard provides a full-suite analytics view combining:
 
 ## User Permissions
 
-Since dashboard is in OAuth app:
-- Leverage existing auth system
+The dashboard is standalone, not part of any tracked app's auth system, so
+there is no existing auth system to leverage. The approved design uses a
+single shared `DASHBOARD_PASSWORD` rather than per-user accounts — there is
+no login identity to tier permissions by. The tiered-access requirements
+below predate that decision and are not implemented; they remain here as a
+possible future direction if the dashboard ever grows multi-user auth:
 - Admin users: full access to all sites
 - Regular users: access to their sites only (if applicable)
 

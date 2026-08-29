@@ -193,9 +193,13 @@ src/
 ├── index.ts      # Public exports
 ├── track.ts      # trackPageView(), trackEvent()
 ├── query.ts      # getStats(), getTopPages(), etc.
+├── error.ts      # trackError(), error queries, deleteOldErrors()
+├── sites.ts      # listSites()
+├── retention.ts  # deleteOldPageViews()
 ├── client.ts     # Drizzle client singleton
 ├── utils.ts      # Hashing, bot detection
 ├── ua.ts         # User-Agent parsing
+├── schema.ts     # Drizzle table definitions
 └── types.ts      # TypeScript interfaces
 ```
 

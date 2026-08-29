@@ -40,7 +40,7 @@ nosework aims to be the simplest, most privacy-respecting analytics solution for
 - [ ] Index optimization recommendations
 
 ### Testing
-- [ ] Unit tests for core functions
+- [x] Unit tests for core functions (29 tests across 5 files, all DB-free)
 - [ ] Integration tests with test database
 - [ ] Edge case coverage (malformed URLs, missing headers)
 

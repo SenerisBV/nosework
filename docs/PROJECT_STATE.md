@@ -116,6 +116,8 @@ nosework/                          # @seneris/nosework
 │   ├── track.ts                   # Page view & event tracking
 │   ├── query.ts                   # All query functions
 │   ├── error.ts                   # Error tracking
+│   ├── sites.ts                   # Site enumeration (listSites())
+│   ├── retention.ts               # Retention deletion (deleteOldPageViews())
 │   ├── client/errors.ts           # Browser error capture
 │   ├── client.ts                  # Drizzle client
 │   ├── utils.ts                   # Hashing, bot detection
