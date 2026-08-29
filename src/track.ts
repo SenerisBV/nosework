@@ -26,7 +26,11 @@ export async function trackPageView(
   const uaNorm = userAgent ?? null;
 
   // Get visitor info (hashes for privacy)
-  const { visitorHash, sessionId } = await getVisitorInfo(ipNorm, uaNorm);
+  const { visitorHash, sessionId } = await getVisitorInfo(
+    siteId,
+    ipNorm,
+    uaNorm
+  );
 
   // Parse user agent
   const ua = parseUserAgent(uaNorm);
@@ -80,7 +84,11 @@ export async function trackEvent(options: TrackEventOptions): Promise<void> {
   const uaNorm = userAgent ?? null;
 
   // Get visitor info (hashes for privacy)
-  const { visitorHash, sessionId } = await getVisitorInfo(ipNorm, uaNorm);
+  const { visitorHash, sessionId } = await getVisitorInfo(
+    siteId,
+    ipNorm,
+    uaNorm
+  );
 
   const db = getClient();
 

@@ -95,15 +95,22 @@ async function getDailySalt(date: Date): Promise<string> {
  * Separated from getVisitorInfo() so the privacy-critical logic can be tested
  * without a database. The inputs and their order are load-bearing: changing
  * them resets every visitor's identity.
+ *
+ * siteId is part of the hash input so that the same person, on the same day,
+ * gets a different visitorHash on each site in a deployment. The daily salt is
+ * one row for the whole database, so without the site component a group-by on
+ * visitorHash would reconstruct a day of cross-site browsing. This is the same
+ * reason Plausible folds the domain into its hash.
  */
 export function computeVisitorIds(
+  siteId: string,
   ip: string | null,
   userAgent: string | null,
   salt: string,
   now: Date
 ): VisitorInfo {
-  // Visitor hash: rotates daily, because the salt does
-  const visitorInput = `${ip ?? ""}|${userAgent ?? ""}|${salt}`;
+  // Visitor hash: site-scoped, and rotates daily because the salt does
+  const visitorInput = `${siteId}|${ip ?? ""}|${userAgent ?? ""}|${salt}`;
   const visitorHash = hash(visitorInput);
 
   // Session hash: rotates every 30 minutes
@@ -115,12 +122,13 @@ export function computeVisitorIds(
 }
 
 export async function getVisitorInfo(
+  siteId: string,
   ip: string | null,
   userAgent: string | null
 ): Promise<VisitorInfo> {
   const now = new Date();
   const salt = await getDailySalt(now);
-  return computeVisitorIds(ip, userAgent, salt, now);
+  return computeVisitorIds(siteId, ip, userAgent, salt, now);
 }
 
 export function extractPathname(url: string): string {
