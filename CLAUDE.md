@@ -5,7 +5,7 @@ Privacy-focused, self-hosted analytics package for tracking page views and event
 ## Project Overview
 
 nosework is an npm package that provides:
-- Cookieless, GDPR-compliant analytics tracking
+- Cookieless analytics tracking — no consent banner required (see `docs/PRIVACY.md` for what that does and does not cover)
 - City-level geolocation via Vercel's geo headers
 - Multi-site support with a shared PostgreSQL database
 - Full query API for building dashboards
@@ -96,6 +96,8 @@ bun run dev
 ```
 
 Note: nosework owns its own migrations. Versioned SQL lives in `drizzle/`, generated with `bun run db:generate` and applied with `bun run db:migrate`. `drizzle-kit push` is never used — it mutates the database without recording a migration, drifting the schema from its history.
+
+`bun run db:migrate` succeeds as-is only against an empty database. `drizzle/0000_init.sql` has no `IF NOT EXISTS`, so against a database that already holds these tables it fails with `relation "page_views" already exists`. Do not drop and recreate — that destroys analytics history. Follow the catch-up procedure in `docs/ARCHITECTURE.md` ("Applying migrations to a database where the tables already exist").
 
 ## Geolocation
 

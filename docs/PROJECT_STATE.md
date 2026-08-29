@@ -86,7 +86,7 @@ Both packages are published to npm and ready for integration.
 ## What's Not Done
 
 ### Testing
-- ✅ Unit tests exist (29 tests across 5 files, all DB-free by design)
+- ✅ Unit tests exist (34 tests across 5 files, all DB-free by design)
 - ❌ No integration tests
 - ❌ Not tested with real traffic
 
@@ -96,6 +96,7 @@ Both packages are published to npm and ready for integration.
 
 ### Migrations
 - ✅ Owned by this repo — versioned SQL in `drizzle/`, generated with `bun run db:generate`, applied with `bun run db:migrate` (`drizzle-kit push` is never used)
+- ⚠️ **The first `db:migrate` against a database that already has these tables will fail** — `drizzle/0000_init.sql` has no `IF NOT EXISTS`. Do not drop and recreate (it destroys analytics history); follow the catch-up procedure in `ARCHITECTURE.md`.
 
 ### Production
 - ❌ No error handling for DB failures
@@ -122,6 +123,7 @@ nosework/                          # @seneris/nosework
 │   ├── client.ts                  # Drizzle client
 │   ├── utils.ts                   # Hashing, bot detection
 │   ├── ua.ts                      # User-Agent parsing
+│   ├── schema.ts                  # Drizzle table definitions
 │   └── types.ts                   # TypeScript types
 ├── drizzle/                       # Versioned SQL migrations
 ├── docs/
@@ -129,6 +131,8 @@ nosework/                          # @seneris/nosework
 │   ├── ARCHITECTURE.md
 │   ├── ROADMAP.md
 │   ├── PROJECT_STATE.md
+│   ├── PRIVACY.md
+│   ├── INTEGRATION.md
 │   ├── PUBLISHING.md
 │   └── DASHBOARD_REQUIREMENTS.md
 └── package.json
@@ -183,5 +187,6 @@ app connects to whatever PostgreSQL database it's configured to use via
 | `ARCHITECTURE.md` | Technical design and data flow |
 | `ROADMAP.md` | Feature phases and status |
 | `INTEGRATION.md` | Step-by-step guide for adding to your app |
+| `PRIVACY.md` | What is collected, retained, and why no consent banner is required |
 | `PUBLISHING.md` | How to publish to npm |
 | `DASHBOARD_REQUIREMENTS.md` | Dashboard UI specifications |

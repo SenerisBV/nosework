@@ -177,10 +177,12 @@ The dashboard provides a full-suite analytics view combining:
 ### 7. Settings
 
 **Site Management:**
-- List of tracked sites
-- Add new site
-- Edit site name/domain
+- List of tracked sites, from `listSites()`
 - View site ID for integration
+
+Sites are not registered: `listSites()` derives the list from page-view data,
+and a site appears the moment it reports its first page view. There is no
+sites table, so there is nothing to add or rename here.
 
 **Data Management:**
 - Export data (CSV/JSON)

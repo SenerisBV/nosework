@@ -78,6 +78,60 @@ not a foreign key. The schema owns its own versioned migrations in
 `bun run db:migrate`. `drizzle-kit push` is never used, since it mutates the
 database without recording a migration.
 
+### Applying migrations to a database where the tables already exist
+
+`bun run db:migrate` works cleanly only against an empty database.
+`drizzle/0000_init.sql` is a plain `CREATE TABLE` script with no
+`IF NOT EXISTS`, so against a database that already holds `page_views`,
+`events`, `daily_salts`, `analytics_errors` and `error_groups` — the case
+for any database carried over from before nosework owned its schema — the
+first run fails with `relation "page_views" already exists`, inside the
+transaction, having recorded nothing. Expect this on the first migrate
+against live data; it is not a sign that anything is wrong with the
+database.
+
+**Do not drop and recreate the tables to get past it.** They hold the
+analytics history the package exists to accumulate, and it is not
+recoverable. Do a catch-up instead: confirm the live schema already matches
+`src/schema.ts`, then tell Drizzle that migration 0000 is already applied.
+
+1. **Compare the live schema against `src/schema.ts`**, column by column,
+   including nullability and defaults. `\d page_views` in `psql` against
+   each of the five tables, read against the definitions above, is enough.
+2. **If they differ**, do not proceed with the catch-up — the difference is
+   real schema drift and needs its own hand-written migration, generated and
+   reviewed before 0000 is marked applied.
+3. **If they match**, insert the bookkeeping row Drizzle would have written.
+   `drizzle-kit migrate` delegates to drizzle-orm's migrator, which keeps its
+   state in `drizzle.__drizzle_migrations` and decides what is pending by
+   comparing the largest `created_at` in that table against the `when` value
+   of each entry in `drizzle/meta/_journal.json` — not by the hash. So the
+   `created_at` below must be exactly the `when` for the `0000_init` entry:
+
+   ```sql
+   CREATE SCHEMA IF NOT EXISTS drizzle;
+   CREATE TABLE IF NOT EXISTS drizzle."__drizzle_migrations" (
+     id SERIAL PRIMARY KEY,
+     hash text NOT NULL,
+     created_at bigint
+   );
+   INSERT INTO drizzle."__drizzle_migrations" ("hash", "created_at")
+   VALUES ('<sha256 of drizzle/0000_init.sql>', 1788017672175);
+   ```
+
+   The hash is the SHA-256 of the migration file's entire contents, which is
+   how drizzle-orm computes it — `shasum -a 256 drizzle/0000_init.sql`. It is
+   recorded, not checked, but recording the real value keeps the row honest.
+   `1788017672175` is the `when` of the `0000_init` entry in
+   `drizzle/meta/_journal.json`; read it from that file rather than trusting
+   this line.
+4. **Re-run `bun run db:migrate`.** It should report nothing to apply. From
+   that point on, later migrations apply normally.
+
+An applied migration file must never be edited afterwards — a changed
+`0000_init.sql` changes its hash and desynchronises this bookkeeping from
+what the database actually contains.
+
 ### page_views
 Individual page view event with all metadata.
 
