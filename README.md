@@ -394,7 +394,9 @@ const data = await getTimeSeries({
 nosework is designed to be privacy-friendly by default:
 
 ### No Cookies
-Visitors are identified by a hash of IP + User-Agent + daily salt. This hash rotates daily, so you can't track users across days (by design). The site ID is not part of the hash, so within one UTC day the same visitor produces the same hash on every site sharing the database — useful if you run several apps, and worth disclosing if you do.
+Visitors are identified by a hash of site ID + IP + User-Agent + daily salt. The site ID is part of the input, so the same visitor produces a different hash on every site sharing the database — you cannot group page views to follow one person across your apps. The salt rotates daily, so you can't follow anyone across days either (by design).
+
+That separation holds against a query, not against you. For as long as a day's salt still exists — 7 days, if you schedule `cleanupOldSalts()` — anyone holding the database can recompute the hash for any site ID from a candidate IP and User-Agent. And the location, browser, OS and device columns are identical for the same visitor on all your sites, so on a low-traffic site that combination can correlate them with no hash involved at all.
 
 ### No PII Storage
 - IP addresses are **never stored** - only used for hashing
@@ -424,6 +426,11 @@ Short version, for the GDPR/ePrivacy question this package usually gets asked:
 - **A DPA may still apply.** nosework is self-hosted, but whoever hosts your
   app and your database (Vercel and Neon, in the common setup) processes that
   data on your behalf and is a sub-processor like any other.
+
+- **No cross-site identifier.** The visitor hash is scoped to the site ID, so
+  running several apps against one database does not produce a value that
+  links a person's activity between them. See [No Cookies](#no-cookies) above
+  for the two limits on that — it stops a join, not a determined operator.
 
 `docs/PRIVACY.md` in the source repository documents every stored field, the
 7-day salt lifetime the anonymity argument depends on, the retention jobs your

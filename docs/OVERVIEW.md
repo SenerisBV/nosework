@@ -25,6 +25,7 @@ nosework is an npm package that:
 
 ### Privacy First
 - **No cookies** - Visitors identified by daily-rotating hash
+- **No cross-site identifier** - The `siteId` is part of the hash input, so the same visitor gets a different hash on each site sharing the database. This stops a `GROUP BY` from following someone across an operator's apps; it does not make correlation impossible (see `PRIVACY.md` for the two limits)
 - **No PII stored** - IPs used only for hashing, never persisted
 - **User-Agent anonymized** - Parsed to categories, raw strings discarded
 - **No consent banner** - Nothing is written to or read from the visitor's device, so ePrivacy Art. 5(3) is never triggered. You do still need privacy-policy text; see `PRIVACY.md`.
@@ -43,7 +44,7 @@ nosework is an npm package that:
 ## Target Use Case
 
 nosework is ideal for:
-- **App suites** - Multiple apps under one organization
+- **App suites** - Multiple apps under one organization, each with its own site-scoped visitor identities
 - **Vercel-hosted apps** - Leverages Vercel's geo headers
 - **Privacy-conscious projects** - Cookieless by construction, with the privacy claims written down and checked against the source in `PRIVACY.md`
 - **Developers who want control** - Own your data, query it however you want

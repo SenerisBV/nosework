@@ -27,7 +27,7 @@ table in `src/schema.ts`:
 | `url` | The full URL of the page viewed, as passed to `trackPageView()`. |
 | `pathname` | The path portion of that URL, extracted server-side. |
 | `referrer` | The referring URL, cleaned before storage: `trackPageView()` parses it and keeps only the origin and path (`refUrl.origin + refUrl.pathname`) — the query string is discarded. If the referrer isn't a parseable URL, it's stored as given. |
-| `visitorHash` | A 16-character hash identifying the visitor without cookies. See [How visitors are counted](#how-visitors-are-counted-without-cookies). |
+| `visitorHash` | A 16-character hash identifying the visitor *on this site*, without cookies. The `siteId` is part of the hash input, so the same visitor gets a different value on each site. See [How visitors are counted](#how-visitors-are-counted-without-cookies). |
 | `sessionId` | A hash identifying the visiting session. See [Sessions](#sessions). |
 | `country`, `countryCode`, `region`, `city` | Geographic location, passed through from whatever the integrating application supplies (in practice, Vercel's geo headers — see [Sub-processors and data location](#sub-processors-and-data-location)). |
 | `browser`, `browserVer` | Browser name and *major version only* (e.g. `Chrome`, `128`), parsed from the User-Agent string. |
@@ -50,14 +50,18 @@ this list is stored beyond what's in `src/schema.ts`.
   never written to any column or log.
 - No raw User-Agent string. It's parsed into `browser` / `browserVer` /
   `os` / `osVer` / `device` and discarded.
-- No client-side identifier, and no identifier that survives the day. The
+- No client-side identifier, and no cross-site identifier. The
   `visitorHash` is never written to or read from the visitor's device, is
-  not an advertising ID, and is not shared with any third party. It is not
-  scoped per site, though: within a single UTC day the same visitor
-  produces the same `visitorHash` on every site sharing this database, so
-  an operator running several sites can see one day's activity across
-  their own sites. Once the salt rotates at UTC midnight that link is gone
-  and cannot be re-derived. See
+  not an advertising ID, and is not shared with any third party. It is
+  scoped per site: the `siteId` is part of the hash input, so the same
+  visitor on the same day produces a *different* `visitorHash` on each
+  site sharing this database, and grouping page views by that value cannot
+  link one person's activity across an operator's sites. That separation
+  is not cryptographic against the operator, though — while the day's salt
+  still exists (up to 7 days), anyone holding it can recompute the hash for
+  any `siteId` from a candidate IP and User-Agent. It stops being derivable
+  at all once the salt is deleted, which is a week later, not at midnight
+  rotation. See
   [How visitors are counted](#how-visitors-are-counted-without-cookies).
 - No device fingerprint (canvas, fonts, screen size, timezone, etc. are
   never collected).
@@ -70,33 +74,53 @@ the `daily_salts` table (`getDailySalt()` in `src/utils.ts`). A visitor is
 identified by:
 
 ```
-visitorHash = sha256(ip | userAgent | dailySalt).slice(0, 16)
+visitorHash = sha256(siteId | ip | userAgent | dailySalt).slice(0, 16)
 ```
 
 (`computeVisitorIds()` in `src/utils.ts`.) The IP address is used only as
 input to this hash — it is never written to disk anywhere in the system.
 
-Because the salt rotates at UTC midnight, the same person visiting on two
-different days produces two unrelated hashes with no way to link them back
-to each other, even by someone with full database access. The hash itself
-cannot be reversed to recover the originating IP.
+The salt rotates at UTC midnight, so the same person visiting on two
+different days produces two unrelated hashes: nothing in the values
+themselves connects one to the other, and neither can be reversed to
+recover the originating IP. What the rotation does *not* do is put that
+connection out of reach immediately. While both days' salts still exist,
+someone holding the database can take a candidate IP and User-Agent,
+recompute both days' hashes, and match them. The link becomes
+undiscoverable when the salt is **deleted**, not when it rotates — see the
+7-day cleanup below. Everything this document says about hashes ceasing to
+be re-derivable is a claim about that deletion.
 
-**The hash input contains no `siteId`.** `computeVisitorIds()` takes the IP,
-the User-Agent, the salt and the time, and nothing else; `trackPageView()`
-does not pass it the site. Within one UTC day, therefore, a visitor produces
-the same `visitorHash` on every site that shares this database, and an
-operator holding that database can group a single day's page views across
-their own sites by that value. That is the honest limit of the daily
-rotation: it bounds the identifier in *time*, not across the sites in one
-deployment. It goes no further than that — the value never reaches the
-visitor's browser, is never sent to a third party, and stops being linkable
-to anything once the day's salt is deleted. An operator running more than
-one site against a single nosework database should say so in their own
-privacy notice.
+**The hash input includes the `siteId`.** `computeVisitorIds()` takes the
+site, the IP, the User-Agent, the salt and the time; `trackPageView()` and
+`trackEvent()` pass the site down. So the same visitor, on the same day,
+produces a *different* `visitorHash` on every site that shares this
+database. Grouping page views by `visitorHash` cannot reconstruct one
+person's browsing across an operator's sites — it could before the hash was
+site-scoped, and no longer can. This is the same reason Plausible folds the
+site's domain into its hash.
+
+Two limits on that separation, stated plainly because a document that
+overclaims is worse than none:
+
+- **It is not cryptographic against the operator.** Site scoping puts the
+  link beyond a `GROUP BY`, not beyond an operator who sets out to find it.
+  While the day's salt still exists — up to 7 days — anyone holding it can
+  compute the hash for *any* `siteId` from a candidate IP and User-Agent,
+  and so match a suspected person's rows across sites. What ends that is
+  the salt's deletion below, not the site scoping.
+- **The other stored columns can correlate a visitor with no hash
+  involved.** Every row still carries country/region/city, browser and
+  major version, OS and major version, device class and a timestamp. That
+  tuple is identical across sites for the same visitor, and on a
+  low-traffic site it is often close to unique — so two sites in one
+  deployment can be lined up on it directly. Site-scoping the hash removes
+  the exact, trivial join; it does not remove every route to correlation.
 
 Salts older than 7 days are deleted by `cleanupOldSalts()`. Once a day's
-salt is gone, that day's `visitorHash` values can no longer be re-derived or
-matched against an IP by anyone — including the operator of the site.
+salt is gone, that day's `visitorHash` values can no longer be re-derived,
+matched against an IP, or recomputed for a different site by anyone —
+including the operator of the site.
 
 ## Sessions
 
@@ -156,8 +180,10 @@ metadata above), independent of the ePrivacy question. The basis is
 legitimate interest, GDPR Article 6(1)(f) — a site operator's interest in
 understanding aggregate traffic to a site they operate, balanced against the
 minimal impact on visitors given the hashing, the absence of any identifier
-that outlives the day or leaves the operator's own database, and the
-bounded retention period.
+that reaches the visitor's device, leaves the operator's own database, or
+spans the operator's sites, the 7-day salt lifetime after which the stored
+hashes can no longer be re-derived by anyone, and the bounded retention
+period.
 
 These are not the same question, and satisfying one does not satisfy the
 other: the ePrivacy analysis is why no *banner* is required; the GDPR
@@ -259,10 +285,15 @@ the EU" is a fact about this operator's deployment (Vercel `fra1`, Neon
 [Sub-processors and data location](#sub-processors-and-data-location).
 
 **If you run more than one site against a single nosework database, the
-paragraph below understates what you can see.** It is written for a site
-standing on its own. Within one UTC day the same visitor's code is
-identical across every site sharing the database, so you can link that
-day's visits between them; add a sentence saying so if that is your setup.
+code below is different on each of them.** The site is part of the hash
+input, so the paragraph holds for each site standing on its own, and the
+codes do not join up between your sites. Two things it still does not say:
+until the day's salt is deleted a week later you could, with the database
+in hand, recompute a suspected visitor's code for any of your sites and
+match them that way; and the location, browser, OS and device columns are
+the same across your sites for the same visitor, so on a low-traffic site
+they can be lined up with no code involved at all. Neither is something a query hands you, but neither
+is impossible.
 
 > This site uses cookieless analytics. No cookies are set and nothing is
 > stored in your browser. To count visits without cookies, we take your IP

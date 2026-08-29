@@ -17,6 +17,33 @@ Both packages are published to npm and ready for integration.
 
 ---
 
+## Breaking change in 0.3.0: visitor hashes are site-scoped
+
+`computeVisitorIds()` now hashes `${siteId}|${ip}|${userAgent}|${salt}`. Before
+0.3.0 the `siteId` was not in the input, and because the daily salt is a single
+row for the whole database, the same person on the same day produced a
+byte-identical `visitorHash` on every site in a deployment —
+`SELECT visitorHash, array_agg(DISTINCT "siteId") FROM page_views GROUP BY
+visitorHash` reconstructed a day of that person's cross-site browsing. The
+change was made deliberately, on the operator's explicit authorisation, and the
+known-answer test in `test/visitor.test.ts` was updated with it.
+
+**Migration: there is nothing to run.** No schema change — `siteId` was already
+a column; only what gets hashed moved. And visitor hashes already rotate every
+night at UTC midnight, so deploying this is equivalent to one extra rotation.
+
+The only effect: on the day of the deploy, a visitor who appears both before
+and after it is counted as two visitors on that site. Session continuity breaks
+at the same instant for anyone mid-session. From the next UTC midnight onward
+the numbers behave exactly as they always did.
+
+Historical rows keep their old, un-scoped hashes and remain internally
+consistent within each day, so queries over past days are unaffected. No
+backfill is possible — the hashes are one-way and the old salts are deleted
+after 7 days — and none is needed.
+
+---
+
 ## What's Working
 
 ### Core Analytics (`@seneris/nosework`)
@@ -24,7 +51,7 @@ Both packages are published to npm and ready for integration.
 **Tracking:**
 - ✅ `trackPageView()` - Full page view tracking with metadata
 - ✅ `trackEvent()` - Custom event tracking with properties
-- ✅ Visitor hashing (daily rotation, cookieless)
+- ✅ Visitor hashing (site-scoped, daily rotation, cookieless)
 - ✅ Session inference (30-minute windows)
 - ✅ Bot detection (comprehensive pattern list)
 - ✅ User-Agent parsing (browser, OS, device type)
@@ -86,7 +113,7 @@ Both packages are published to npm and ready for integration.
 ## What's Not Done
 
 ### Testing
-- ✅ Unit tests exist (34 tests across 5 files, all DB-free by design)
+- ✅ Unit tests exist (35 tests across 5 files, all DB-free by design)
 - ❌ No integration tests
 - ❌ Not tested with real traffic
 

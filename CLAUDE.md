@@ -112,10 +112,13 @@ These headers are automatically available on Vercel-hosted apps. No third-party 
 
 ## Privacy Design
 
-- **No cookies** - Visitors identified by daily-rotating hash of IP + UA
+- **No cookies** - Visitors identified by a daily-rotating hash of siteId + IP + UA
+- **Site-scoped identity** - `siteId` is part of the hash input, so the same visitor gets a different `visitorHash` on each site sharing the database; page views cannot be grouped to follow one person across sites
 - **No PII stored** - IPs never stored, only used for hashing
 - **User-Agent anonymized** - Parsed to categories, raw string not stored
 - **Sessions inferred** - 30-minute window hash, no session cookies
+
+The site scoping stops a `GROUP BY`, not a determined operator: while a day's salt exists (7 days, if `cleanupOldSalts()` is scheduled) the hash can be recomputed for any `siteId` from a candidate IP + UA, and the geo/browser/OS/device columns are identical for one visitor across sites regardless. `docs/PRIVACY.md` states both limits and is the source of truth for any privacy-page text.
 
 ## Database Schema
 

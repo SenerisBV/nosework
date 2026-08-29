@@ -212,18 +212,41 @@ follow the same `siteId`-as-bare-column pattern as above.
 ### Visitor Identification (Cookieless)
 
 ```
-visitorHash = SHA256(IP + UserAgent + DailySalt).slice(0, 16)
+visitorHash = SHA256(siteId + IP + UserAgent + DailySalt).slice(0, 16)
 ```
 
+The exact input is `${siteId}|${ip}|${userAgent}|${salt}` — `computeVisitorIds()`
+in `src/utils.ts`, pinned by a known-answer test in `test/visitor.test.ts`.
+
+- **Site-scoped** - `siteId` is part of the input, so the same visitor gets a different hash on each site sharing the database. The daily salt is one row for the whole database, so without this a `GROUP BY visitorHash` would reconstruct a day of cross-site browsing
 - **Daily rotation** - Salt changes each day, so visitors can't be tracked across days
 - **No reverse lookup** - Hash cannot be reversed to get original IP
 - **Collision-resistant** - 16 hex chars = 64 bits of entropy
 
+Neither property is absolute against the operator: while a day's salt exists
+(7 days, if `cleanupOldSalts()` runs) the hash can be recomputed for any
+`siteId` or day from a candidate IP + UA, and the geo/browser/OS/device columns
+correlate a visitor across sites with no hash at all. `docs/PRIVACY.md` states
+both limits; it is the source of truth for privacy claims.
+
 ### Session Inference
 
 ```
-sessionId = SHA256(IP + UserAgent + DailySalt + 30minWindow).slice(0, 16)
+sessionId = SHA256(siteId + IP + UserAgent + DailySalt + 30minWindow).slice(0, 16)
 ```
+
+The session id is the visitor hash input plus `|<30-min bucket>`, so it inherits
+the site scoping.
+
+#### Deploying the site-scoping change (0.3.0)
+
+Folding `siteId` into the input altered identity derivation, so every live
+visitor identity resets at the moment of deploy. There is nothing to migrate:
+no schema changed, and hashes already rotate nightly at UTC midnight, so this
+is equivalent to one extra rotation. The only effect is that a visitor seen
+both before and after the deploy is counted twice **on the deploy day**.
+Historical rows keep their old hashes and stay internally consistent within
+each day; no backfill is possible or needed. See `PROJECT_STATE.md`.
 
 - **30-minute windows** - Session hash rotates every 30 minutes
 - **No cookies** - Sessions inferred from request timing
@@ -286,6 +309,7 @@ No external services required. Geo data comes from Vercel headers.
 - Each app has its own `ANALYTICS_DATABASE_URL`
 - Apps can only write to their assigned `siteId`
 - No cross-site data access without explicit queries
+- Visitor hashes are site-scoped, so a query that does span sites still cannot join one visitor's rows between them by identity
 
 ### Input Validation
 - URL and referrer sanitized
