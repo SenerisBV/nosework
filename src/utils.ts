@@ -89,25 +89,38 @@ async function getDailySalt(date: Date): Promise<string> {
   }
 }
 
-export async function getVisitorInfo(
+/**
+ * Pure derivation of visitor and session identifiers.
+ *
+ * Separated from getVisitorInfo() so the privacy-critical logic can be tested
+ * without a database. The inputs and their order are load-bearing: changing
+ * them resets every visitor's identity.
+ */
+export function computeVisitorIds(
   ip: string | null,
-  userAgent: string | null
-): Promise<VisitorInfo> {
-  const now = new Date();
-  const salt = await getDailySalt(now);
-
-  // Visitor hash: rotates daily
-  // Uses IP + UA + daily salt for privacy
+  userAgent: string | null,
+  salt: string,
+  now: Date
+): VisitorInfo {
+  // Visitor hash: rotates daily, because the salt does
   const visitorInput = `${ip ?? ""}|${userAgent ?? ""}|${salt}`;
   const visitorHash = hash(visitorInput);
 
   // Session hash: rotates every 30 minutes
   // This provides session-like behavior without cookies
   const thirtyMinWindow = Math.floor(now.getTime() / (30 * 60 * 1000));
-  const sessionInput = `${visitorInput}|${thirtyMinWindow}`;
-  const sessionId = hash(sessionInput);
+  const sessionId = hash(`${visitorInput}|${thirtyMinWindow}`);
 
   return { visitorHash, sessionId };
+}
+
+export async function getVisitorInfo(
+  ip: string | null,
+  userAgent: string | null
+): Promise<VisitorInfo> {
+  const now = new Date();
+  const salt = await getDailySalt(now);
+  return computeVisitorIds(ip, userAgent, salt, now);
 }
 
 export function extractPathname(url: string): string {

@@ -36,7 +36,7 @@ export * from "./schema.js";
 export { getClient, disconnect } from "./client.js";
 
 // Utility functions
-export { isBot, cleanupOldSalts } from "./utils.js";
+export { isBot, cleanupOldSalts, computeVisitorIds } from "./utils.js";
 
 // User-Agent parsing (for advanced use cases)
 export { parseUserAgent } from "./ua.js";
