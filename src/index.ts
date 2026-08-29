@@ -29,6 +29,10 @@ export {
   getSessions,
 } from "./query.js";
 
+// Site enumeration
+export { listSites } from "./sites.js";
+export type { SiteSummary } from "./sites.js";
+
 // Schema exports (for advanced use cases)
 export * from "./schema.js";
 
