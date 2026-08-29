@@ -74,15 +74,13 @@ The `files` field in `package.json` controls what's published:
 ```json
 {
   "files": [
-    "dist",
-    "prisma"
+    "dist"
   ]
 }
 ```
 
 This includes:
 - `dist/` - Compiled JavaScript and TypeScript declarations
-- `prisma/` - Schema file for reference/migrations
 
 Excluded automatically:
 - `node_modules/`

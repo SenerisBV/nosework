@@ -7,8 +7,7 @@ Step-by-step guide for adding analytics to a Next.js app using `@seneris/nosewor
 ## Prerequisites
 
 - Next.js app (App Router recommended)
-- Access to MoopySuite database (or separate PostgreSQL)
-- `MOOPY_CLIENT_ID` environment variable (if using MoopySuite OAuth)
+- Access to a PostgreSQL database
 
 ---
 
@@ -35,11 +34,9 @@ Add to your `.env.local`:
 # Required: Database connection
 ANALYTICS_DATABASE_URL="postgresql://user:pass@host/dbname"
 
-# Required: Site identifier (use MOOPY_CLIENT_ID if using MoopySuite OAuth)
-MOOPY_CLIENT_ID="your-app-name"
+# Required: Site identifier
+ANALYTICS_SITE_ID="your-app-name"
 ```
-
-**MoopySuite users:** Use the same connection string as MoopySuite's `DATABASE_URL`.
 
 ---
 
@@ -56,7 +53,7 @@ export async function POST(request: NextRequest) {
     const { url, referrer } = await request.json();
 
     await trackPageView({
-      siteId: process.env.MOOPY_CLIENT_ID!,
+      siteId: process.env.ANALYTICS_SITE_ID!,
       url,
       referrer,
       // Visitor identification (for hashing - not stored)
@@ -163,7 +160,7 @@ export async function POST(request: NextRequest) {
     const { name, properties, url } = await request.json();
 
     await trackEvent({
-      siteId: process.env.MOOPY_CLIENT_ID!,
+      siteId: process.env.ANALYTICS_SITE_ID!,
       name,
       properties,
       url,
@@ -221,7 +218,7 @@ export async function POST(request: NextRequest) {
     const { message, stack, url, metadata } = await request.json();
 
     await trackError({
-      siteId: process.env.MOOPY_CLIENT_ID!,
+      siteId: process.env.ANALYTICS_SITE_ID!,
       message,
       stack,
       url,
@@ -275,7 +272,7 @@ export function Analytics() {
   useEffect(() => {
     initErrorTracking({
       endpoint: '/api/analytics/error',
-      siteId: process.env.NEXT_PUBLIC_MOOPY_CLIENT_ID!,
+      siteId: process.env.NEXT_PUBLIC_ANALYTICS_SITE_ID!,
     });
 
     return () => stopErrorTracking();
@@ -287,7 +284,7 @@ export function Analytics() {
 
 Add to `.env.local`:
 ```env
-NEXT_PUBLIC_MOOPY_CLIENT_ID="your-app-name"
+NEXT_PUBLIC_ANALYTICS_SITE_ID="your-app-name"
 ```
 
 ---
@@ -314,7 +311,7 @@ const response = await openai.chat.completions.create({
 });
 
 await trackLLMCall({
-  siteId: process.env.MOOPY_CLIENT_ID!,
+  siteId: process.env.ANALYTICS_SITE_ID!,
   provider: 'openai',
   model: 'gpt-4-turbo',
   inputTokens: response.usage?.prompt_tokens ?? 0,
@@ -332,7 +329,7 @@ await trackLLMCall({
 import { withLLMTracking } from '@seneris/nosework-llm';
 
 const trackedOpenAI = withLLMTracking(openai, {
-  siteId: process.env.MOOPY_CLIENT_ID!,
+  siteId: process.env.ANALYTICS_SITE_ID!,
   provider: 'openai',
 });
 
@@ -351,7 +348,7 @@ Pass `userId` to link analytics to your app's users:
 
 ```typescript
 await trackPageView({
-  siteId: process.env.MOOPY_CLIENT_ID!,
+  siteId: process.env.ANALYTICS_SITE_ID!,
   url,
   referrer,
   userId: session?.user?.id, // From your auth system
@@ -385,22 +382,18 @@ SELECT * FROM page_views WHERE "siteId" = 'your-app-name' ORDER BY timestamp DES
 ### No data appearing
 
 1. Check `ANALYTICS_DATABASE_URL` is set correctly
-2. Verify `MOOPY_CLIENT_ID` matches your app's OAuth client_id
+2. Verify `ANALYTICS_SITE_ID` matches the value you're querying with
 3. Check server logs for tracking errors
 
 ### Geo data is null
 
 This is expected in local development. Vercel geo headers are only available when deployed to Vercel.
 
-### Prisma client errors
-
-Run `bunx prisma generate` in your app to regenerate the client after installing/updating nosework.
-
 ---
 
 ## Next Steps
 
-- View analytics in MoopySuite dashboard
+- Query analytics using the functions in the [README](../README.md) — there is no dashboard UI yet
 - Set up alerts for error spikes
 - Monitor LLM costs
 

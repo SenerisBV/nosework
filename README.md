@@ -93,13 +93,6 @@ ANALYTICS_DATABASE_URL="postgresql://user:pass@host/dbname"
 ANALYTICS_SITE_ID="my-app"  # Unique identifier for this app
 ```
 
-**MoopySuite Users:** Your analytics tables are in the MoopySuite database, so use:
-```env
-ANALYTICS_DATABASE_URL="${DATABASE_URL}"  # Same as MoopySuite DB
-# No ANALYTICS_SITE_ID needed - use MOOPY_CLIENT_ID instead
-```
-See [MoopySuite Integration](./docs/MOOPYSUITE_INTEGRATION.md).
-
 ### 3. Add Tracking Endpoint
 
 Create `app/api/analytics/track/route.ts`:
@@ -490,12 +483,14 @@ interface PaginatedQueryOptions extends QueryOptions {
 | `isBot(userAgent)` | Check if a user-agent is a bot |
 | `parseUserAgent(ua)` | Parse a user-agent string |
 | `cleanupOldSalts()` | Remove daily salts older than 7 days |
+| `listSites()` | List every site that has reported a page view, derived from page-view data (there is no sites table) |
+| `deleteOldPageViews(olderThan, siteId?)` | Delete page views older than a cutoff; omit `siteId` to sweep all sites |
 
 ---
 
 ## Database Schema
 
-The package uses these tables (created by MoopySuite migrations):
+The package uses these tables (created by this repo's own Drizzle migrations in `drizzle/`, generated with `bun run db:generate` and applied with `bun run db:migrate`):
 
 - **page_views** - Individual page view events with location, device info
 - **events** - Custom events with properties

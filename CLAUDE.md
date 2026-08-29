@@ -65,8 +65,7 @@ Each consuming app:
 - `getSessions()` - Individual session data for debugging
 
 ### Site Management
-- `getOrCreateSite()` - Create or retrieve a site
-- `listSites()` - List all tracked sites
+- `listSites()` - List all tracked sites, derived from page-view data (there is no sites table)
 
 ### Error Tracking
 - `trackError()` - Track a JavaScript error
@@ -75,6 +74,7 @@ Each consuming app:
 - `getErrorInstances()` - Individual error occurrences
 - `updateErrorGroupStatus()` - Mark errors resolved/ignored
 - `deleteOldErrors()` - Clean up old error data
+- `deleteOldPageViews()` - Clean up old page-view data (retention enforcement; omit `siteId` to sweep all sites)
 
 ### Client-Side Error Capture
 Import from `@seneris/nosework/client/errors`:
@@ -95,7 +95,7 @@ bun run build
 bun run dev
 ```
 
-Note: Database migrations are managed by MoopySuite. nosework uses Drizzle ORM which requires no code generation.
+Note: nosework owns its own migrations. Versioned SQL lives in `drizzle/`, generated with `bun run db:generate` and applied with `bun run db:migrate`. `drizzle-kit push` is never used — it mutates the database without recording a migration, drifting the schema from its history.
 
 ## Geolocation
 
@@ -117,7 +117,7 @@ These headers are automatically available on Vercel-hosted apps. No third-party 
 
 ## Database Schema
 
-Tables (defined in `src/schema.ts`, created by MoopySuite migrations):
+Tables (defined in `src/schema.ts`, created by this repo's own Drizzle migrations in `drizzle/`):
 
 - **page_views** - Page view events with location, device, visitor hash
 - **events** - Custom events with name, properties, visitor hash
@@ -131,7 +131,7 @@ Each app that uses nosework needs:
 
 1. **Environment variables**:
    - `ANALYTICS_DATABASE_URL` - Database connection string
-   - `MOOPY_CLIENT_ID` - Use existing OAuth client_id as siteId
+   - `ANALYTICS_SITE_ID` - Site identifier for this app
 
 2. **API endpoint**: `/api/analytics/track` route that:
    - Receives `{ url, referrer }` from client
@@ -151,17 +151,6 @@ See `docs/PUBLISHING.md` for full guide.
 bun run build
 npm publish --access public
 ```
-
-## Integration with MoopySuite
-
-**Status:** Analytics tables added to MoopySuite database, migration complete.
-
-The analytics tables live in MoopySuite's database, using `MOOPY_CLIENT_ID` (OAuth client_id) as the siteId.
-See `docs/MOOPYSUITE_INTEGRATION.md` for:
-- Schema details
-- How MOOPY_CLIENT_ID maps to siteId
-- Dashboard integration
-- Query examples with user joins
 
 ## Dependencies
 

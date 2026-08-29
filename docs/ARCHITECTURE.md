@@ -34,7 +34,7 @@
 │  │  - trackEvent│  │  - getPages  │  │  - bot detect│          │
 │  └──────────────┘  └──────────────┘  └──────────────┘          │
 │                          │                                      │
-│                          │ Prisma Client                        │
+│                          │ Drizzle ORM                          │
 │                          ▼                                      │
 └─────────────────────────────────────────────────────────────────┘
                                │
@@ -43,10 +43,12 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │                    Shared Neon Database                         │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐        │
-│  │  Site    │  │ PageView │  │  Event   │  │DailySalt │        │
+│  │ PageView │  │  Event   │  │DailySalt │  │  Errors  │        │
 │  └──────────┘  └──────────┘  └──────────┘  └──────────┘        │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+There is no `Site` table — `siteId` is a bare column written by whichever app is reporting, not a foreign key into a sites table. `listSites()` derives the list of known sites from page-view data instead.
 
 ## Data Flow
 
@@ -69,90 +71,87 @@ Single-page apps use client-side routing, so navigation doesn't trigger new HTTP
 
 ## Database Schema
 
-### Site
-Represents a tracked application/website.
+The schema is defined in `src/schema.ts` using Drizzle's `pgTable()`. There is
+no `Site` table or model — `siteId` is a bare `text` column on each table,
+not a foreign key. The schema owns its own versioned migrations in
+`drizzle/`, generated with `bun run db:generate` and applied with
+`bun run db:migrate`. `drizzle-kit push` is never used, since it mutates the
+database without recording a migration.
 
-```prisma
-model Site {
-  id        String   @id @default(cuid())
-  name      String
-  domain    String   @unique
-  createdAt DateTime @default(now())
-
-  pageViews PageView[]
-  events    Event[]
-}
-```
-
-### PageView
+### page_views
 Individual page view event with all metadata.
 
-```prisma
-model PageView {
-  id          String   @id @default(cuid())
-  siteId      String
+```typescript
+export const pageViews = pgTable("page_views", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  siteId: text("siteId").notNull(),
 
   // Page
-  url         String
-  pathname    String
-  referrer    String?
+  url: text("url").notNull(),
+  pathname: text("pathname").notNull(),
+  referrer: text("referrer"),
 
   // Visitor (cookieless identification)
-  visitorHash String   // Daily-rotating hash
-  sessionId   String   // 30-minute window hash
+  visitorHash: text("visitorHash").notNull(), // Daily-rotating hash
+  sessionId: text("sessionId").notNull(),     // 30-minute window hash
 
   // Location (from Vercel headers)
-  country     String?
-  countryCode String?
-  region      String?
-  city        String?
+  country: text("country"),
+  countryCode: text("countryCode"),
+  region: text("region"),
+  city: text("city"),
 
   // Device (parsed from User-Agent)
-  browser     String?
-  browserVer  String?
-  os          String?
-  osVer       String?
-  device      String?  // desktop, mobile, tablet
+  browser: text("browser"),
+  browserVer: text("browserVer"),
+  os: text("os"),
+  osVer: text("osVer"),
+  device: text("device"), // desktop, mobile, tablet
 
   // Optional user link
-  userId      String?
+  userId: text("userId"),
 
   // Bot detection
-  isBot       Boolean @default(false)
+  isBot: boolean("isBot").default(false).notNull(),
 
-  timestamp   DateTime @default(now())
-}
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+});
 ```
 
-### Event
+### events
 Custom events with flexible properties.
 
-```prisma
-model Event {
-  id          String   @id @default(cuid())
-  siteId      String
+```typescript
+export const events = pgTable("events", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  siteId: text("siteId").notNull(),
 
-  name        String   // Event name (e.g., "signup", "purchase")
-  properties  Json?    // Arbitrary event data
+  name: text("name").notNull(),        // Event name (e.g., "signup", "purchase")
+  properties: json("properties"),      // Arbitrary event data
 
-  visitorHash String
-  sessionId   String
-  userId      String?
-  url         String?
+  visitorHash: text("visitorHash").notNull(),
+  sessionId: text("sessionId").notNull(),
+  userId: text("userId"),
+  url: text("url"),
 
-  timestamp   DateTime @default(now())
-}
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+});
 ```
 
-### DailySalt
+### daily_salts
 Rotating salts for privacy-preserving visitor hashing.
 
-```prisma
-model DailySalt {
-  date  DateTime @id @db.Date
-  salt  String
-}
+```typescript
+export const dailySalts = pgTable("daily_salts", {
+  date: date("date").primaryKey(),
+  salt: text("salt").notNull(),
+});
 ```
+
+### analytics_errors / error_groups
+Error tracking: individual occurrences and their fingerprint-based
+aggregates. See `src/schema.ts` for the full field list — both tables
+follow the same `siteId`-as-bare-column pattern as above.
 
 ## Privacy Architecture
 
@@ -194,7 +193,7 @@ src/
 ├── index.ts      # Public exports
 ├── track.ts      # trackPageView(), trackEvent()
 ├── query.ts      # getStats(), getTopPages(), etc.
-├── client.ts     # Prisma client singleton
+├── client.ts     # Drizzle client singleton
 ├── utils.ts      # Hashing, bot detection
 ├── ua.ts         # User-Agent parsing
 └── types.ts      # TypeScript interfaces
@@ -204,7 +203,8 @@ src/
 
 | Package | Purpose |
 |---------|---------|
-| `@prisma/client` | Database ORM |
+| `drizzle-orm` | Database ORM (no codegen required) |
+| `postgres` | PostgreSQL driver |
 | `ua-parser-js` | User-Agent parsing |
 
 No external services required. Geo data comes from Vercel headers.

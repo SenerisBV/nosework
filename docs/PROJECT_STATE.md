@@ -53,6 +53,10 @@ Both packages are published to npm and ready for integration.
 - ✅ `updateErrorGroupStatus()` - Resolve/ignore errors
 - ✅ `deleteOldErrors()` - Cleanup old data
 
+**Site Management:**
+- ✅ `listSites()` - List tracked sites, derived from page-view data (no sites table)
+- ✅ `deleteOldPageViews()` - Retention cleanup for page views (omit `siteId` to sweep all sites)
+
 **Client-Side Error Capture (`/client/errors`):**
 - ✅ `initErrorTracking()` - Auto-capture unhandled errors
 - ✅ `captureError()` - Manual error tracking
@@ -82,13 +86,16 @@ Both packages are published to npm and ready for integration.
 ## What's Not Done
 
 ### Testing
-- ❌ No unit tests
+- ✅ Unit tests exist (29 tests across 5 files, all DB-free by design)
 - ❌ No integration tests
 - ❌ Not tested with real traffic
 
 ### Publishing
 - ✅ Published to npm
 - ❌ No CI/CD pipeline
+
+### Migrations
+- ✅ Owned by this repo — versioned SQL in `drizzle/`, generated with `bun run db:generate`, applied with `bun run db:migrate` (`drizzle-kit push` is never used)
 
 ### Production
 - ❌ No error handling for DB failures
@@ -97,41 +104,6 @@ Both packages are published to npm and ready for integration.
 
 ### Dashboard
 - ❌ No pre-built dashboard (requirements documented in `DASHBOARD_REQUIREMENTS.md`)
-- ⏳ Planned for MoopySuite admin area
-
----
-
-## MoopySuite Integration
-
-**Status:** ✅ Schema added, migration run
-
-The analytics tables have been added to MoopySuite's database schema. This enables:
-- Single database for auth + apps + analytics
-- Linking analytics to User model
-- Using `MOOPY_CLIENT_ID` (OAuth client_id) as the siteId
-
-### Site Identification
-
-Consumer apps use their existing `MOOPY_CLIENT_ID` environment variable as the `siteId`:
-
-```typescript
-await trackPageView({
-  siteId: process.env.MOOPY_CLIENT_ID!, // Already configured in all apps
-  url: window.location.href,
-  // ...
-});
-```
-
-### Files Added to MoopySuite
-
-| File | Purpose |
-|------|---------|
-| `prisma/schema.prisma` | Added PageView, Event, DailySalt, AnalyticsError, ErrorGroup, LLMCall models |
-| `src/lib/analytics.ts` | Dashboard helper functions (getAppBySiteId, getTrackedSites, enrichWithAppInfo) |
-
-### Migration
-
-✅ Migration complete - analytics tables created in MoopySuite database.
 
 ---
 
@@ -145,19 +117,18 @@ nosework/                          # @seneris/nosework
 │   ├── query.ts                   # All query functions
 │   ├── error.ts                   # Error tracking
 │   ├── client/errors.ts           # Browser error capture
-│   ├── client.ts                  # Prisma client
+│   ├── client.ts                  # Drizzle client
 │   ├── utils.ts                   # Hashing, bot detection
 │   ├── ua.ts                      # User-Agent parsing
 │   └── types.ts                   # TypeScript types
-├── prisma/schema.prisma
+├── drizzle/                       # Versioned SQL migrations
 ├── docs/
 │   ├── OVERVIEW.md
 │   ├── ARCHITECTURE.md
 │   ├── ROADMAP.md
 │   ├── PROJECT_STATE.md
 │   ├── PUBLISHING.md
-│   ├── DASHBOARD_REQUIREMENTS.md
-│   └── MOOPYSUITE_INTEGRATION.md
+│   └── DASHBOARD_REQUIREMENTS.md
 └── package.json
 
 nosework-llm/                      # @seneris/nosework-llm
@@ -166,27 +137,19 @@ nosework-llm/                      # @seneris/nosework-llm
 │   ├── track.ts                   # LLM call tracking
 │   ├── query.ts                   # LLM query functions
 │   ├── pricing.ts                 # Model pricing data
-│   ├── client.ts                  # Prisma client
+│   ├── client.ts                  # Database client
 │   └── types.ts                   # TypeScript types
-├── prisma/schema.prisma
 └── package.json
 ```
 
 ---
 
-## Database Options
+## Database
 
-### Option A: Separate Neon Database
-- Dedicated analytics database
-- Both packages connect to same DB
-- Independent from app data
-
-### Option B: MoopySuite Integration (Recommended)
-- Add analytics tables to MoopySuite's existing DB
-- Links to User and App models directly
-- Single source of truth
-- Dashboard in same app
-- See `docs/MOOPYSUITE_INTEGRATION.md`
+nosework owns its schema and migrations directly — see `src/schema.ts` and
+`drizzle/`. There is no separate host application involved; each consuming
+app connects to whatever PostgreSQL database it's configured to use via
+`ANALYTICS_DATABASE_URL`.
 
 ---
 
@@ -194,19 +157,19 @@ nosework-llm/                      # @seneris/nosework-llm
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `ANALYTICS_DATABASE_URL` | Yes | PostgreSQL connection (or `DATABASE_URL` if using MoopySuite) |
-| `ANALYTICS_SITE_ID` | Yes | App.id from MoopySuite (or Site.id if separate) |
+| `ANALYTICS_DATABASE_URL` | Yes | PostgreSQL connection string |
+| `ANALYTICS_SITE_ID` | Yes | Site identifier for the consuming app |
 
 ---
 
 ## Next Steps
 
-1. ✅ ~~Choose database strategy~~ - MoopySuite integration
-2. ✅ ~~Add schema to MoopySuite~~
+1. ✅ ~~Choose database strategy~~ - own the schema and migrations directly
+2. ✅ ~~Add schema~~
 3. ✅ ~~Run migrations~~
 4. ✅ ~~Publish to npm~~
 5. ⏳ **Integrate into first app** - See `docs/INTEGRATION.md`
-6. ⏳ **Build dashboard** - In MoopySuite admin area
+6. ⏳ **Build dashboard**
 
 ---
 
@@ -220,4 +183,3 @@ nosework-llm/                      # @seneris/nosework-llm
 | `INTEGRATION.md` | Step-by-step guide for adding to your app |
 | `PUBLISHING.md` | How to publish to npm |
 | `DASHBOARD_REQUIREMENTS.md` | Dashboard UI specifications |
-| `MOOPYSUITE_INTEGRATION.md` | Schema additions for MoopySuite |
