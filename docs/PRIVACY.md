@@ -88,8 +88,17 @@ visitor's device to make this work.
 
 ## Retention
 
-Page views are retained for **24 months**, enforced by `deleteOldPageViews()`
-run on a daily schedule by the integrating deployment.
+The intended retention period is **24 months**, enforced by
+`deleteOldPageViews()`, which a deployment is expected to run on a daily
+schedule.
+
+**As with `cleanupOldSalts()`, nothing inside this repository actually
+invokes `deleteOldPageViews()`.** It is a function this package exports,
+not a job that runs on its own. Until a deployment schedules it — daily,
+alongside `cleanupOldSalts()` — page views are not deleted at all, and "24
+months" describes a target the code is built to support, not something
+currently happening. This document's claim that retention is "24 months"
+is only true for a deployment that has actually wired up that schedule.
 
 This retention period rests on a specific fact: because the daily salt is
 destroyed after 7 days, a `visitorHash` older than a week cannot be traced
@@ -139,13 +148,27 @@ analysis is why the *processing* is nonetheless lawful.
 - **Vercel** — hosting for the applications that integrate nosework.
   Vercel resolves each request's approximate geographic location at the
   edge and passes only the result (country, region, city) to the
-  application as request headers; nosework and the integrating application
-  never contact a separate geolocation service or send the visitor's IP
-  address to one. Functions are pinned to the `fra1` (Frankfurt) region.
-- **Neon** — the Postgres database. The project is provisioned in
-  `eu-central-1` (Frankfurt).
+  application as request headers.
+- **Neon** — the Postgres database.
 
-All processing and storage described in this document occurs within the EU.
+nosework's own code makes no outbound network calls to resolve location —
+it never contacts a geolocation service and never sends a visitor's IP
+address anywhere. `country` / `region` / `city` are stored exactly as the
+integrating application supplies them (`src/types.ts` documents these as
+"Geo data (from Vercel headers or other source)" — nosework accepts
+whatever it's given). In the common case that source is Vercel's built-in
+geo headers, which is what the rest of this document assumes. If a
+deployment instead sources this data from a third-party GeoIP service, that
+service is a sub-processor nosework has no visibility into, and the
+deployment operator is responsible for disclosing it themselves — the same
+way [Scope](#scope) applies to `trackEvent()` and `trackError()`.
+
+For this operator's own deployment specifically: Vercel functions are
+pinned to `fra1` (Frankfurt) and the Neon project is provisioned in
+`eu-central-1` (Frankfurt), so all processing and storage occurs within the
+EU. That is a fact about this deployment, not a property of the nosework
+library — a different deployment choosing different regions or a
+non-Vercel geo source would need to state its own data location here.
 
 ## Scope
 
@@ -186,7 +209,12 @@ This section exists because a document that overclaims is worse than none.
   **undercount** a site's real traffic (by dropping a misclassified human),
   never inflate it. Any inflation instead comes from bots the pattern list
   missed upstream, which are indistinguishable from real visitors once
-  written.
+  written. Separately, `isBot()` (`src/utils.ts`) also treats a missing or
+  empty User-Agent as a bot outright — a real visitor whose client
+  suppresses the User-Agent header (privacy-hardened browsers, some
+  proxies) is flagged `isBot = true` and excluded from statistics the same
+  way a crawler would be. This is another source of undercounting, not
+  overcounting.
 - **This is not legal advice.** This document describes what the software
   does and does not do, verified against its source. Whether that is
   sufficient for a specific site's obligations is a judgment a site
@@ -196,6 +224,13 @@ This section exists because a document that overclaims is worse than none.
   the optional `userId` field.
 
 ## What you can quote on a privacy page
+
+**If your integration passes `userId` to `trackPageView()`, do not quote the
+paragraph below unmodified.** The sentence "even we can no longer connect
+that code to you" is false for those page views — the stored `userId`
+links the row back to your own user account regardless of salt rotation.
+Either drop that sentence, or add a clause noting that visits tied to a
+logged-in user remain identifiable to you for the full retention period.
 
 > This site uses cookieless analytics. No cookies are set and nothing is
 > stored in your browser. To count visits without cookies, we take your IP
