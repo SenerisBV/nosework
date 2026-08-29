@@ -292,8 +292,8 @@ until the day's salt is deleted a week later you could, with the database
 in hand, recompute a suspected visitor's code for any of your sites and
 match them that way; and the location, browser, OS and device columns are
 the same across your sites for the same visitor, so on a low-traffic site
-they can be lined up with no code involved at all. Neither is something a query hands you, but neither
-is impossible.
+they can be lined up with no code involved at all. Neither is something
+a query hands you, but neither is impossible.
 
 > This site uses cookieless analytics. No cookies are set and nothing is
 > stored in your browser. To count visits without cookies, we take your IP

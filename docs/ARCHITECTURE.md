@@ -238,6 +238,10 @@ sessionId = SHA256(siteId + IP + UserAgent + DailySalt + 30minWindow).slice(0, 1
 The session id is the visitor hash input plus `|<30-min bucket>`, so it inherits
 the site scoping.
 
+- **30-minute windows** - Session hash rotates every 30 minutes
+- **No cookies** - Sessions inferred from request timing
+- **Privacy-preserving** - Can't link sessions across time windows
+
 #### Deploying the site-scoping change (0.3.0)
 
 Folding `siteId` into the input altered identity derivation, so every live
@@ -247,10 +251,6 @@ is equivalent to one extra rotation. The only effect is that a visitor seen
 both before and after the deploy is counted twice **on the deploy day**.
 Historical rows keep their old hashes and stay internally consistent within
 each day; no backfill is possible or needed. See `PROJECT_STATE.md`.
-
-- **30-minute windows** - Session hash rotates every 30 minutes
-- **No cookies** - Sessions inferred from request timing
-- **Privacy-preserving** - Can't link sessions across time windows
 
 ### Data Minimization
 

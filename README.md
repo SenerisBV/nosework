@@ -16,6 +16,14 @@ exactly what is collected, how visitors are counted without cookies, the
 limits of those claims, and text you can adapt for a privacy page. That
 document is not included in the npm package.
 
+## Upgrading to 0.3.0
+
+- The visitor hash is now scoped per site: the input changed from `ip|userAgent|salt` to `siteId|ip|userAgent|salt`.
+- This is not a data migration — hashes already rotate nightly at UTC midnight, so deploying this change is equivalent to one extra rotation.
+- The only practical effect: visitors who appear both before and after the deploy are counted twice on the deploy day. Historical rows keep their old hashes and remain internally consistent within each day; no backfill is possible or needed.
+- Why it changed: previously the same visitor produced an identical hash on every site sharing the database, which made `visitorHash` a cross-site join key.
+- **API removal:** `computeVisitorIds` is no longer exported from the package root (it remains exported from its module for testing). Update any import of it from `@seneris/nosework`.
+
 ## Architecture
 
 ```
@@ -426,7 +434,6 @@ Short version, for the GDPR/ePrivacy question this package usually gets asked:
 - **A DPA may still apply.** nosework is self-hosted, but whoever hosts your
   app and your database (Vercel and Neon, in the common setup) processes that
   data on your behalf and is a sub-processor like any other.
-
 - **No cross-site identifier.** The visitor hash is scoped to the site ID, so
   running several apps against one database does not produce a value that
   links a person's activity between them. See [No Cookies](#no-cookies) above
