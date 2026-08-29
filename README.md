@@ -6,12 +6,15 @@ Privacy-focused, self-hosted analytics for your app suite.
 
 - **Cookieless tracking** - No consent banners needed
 - **City-level geolocation** - Via Vercel's geo headers
-- **GDPR compliant** - No PII stored, IPs are hashed
+- **No PII stored** - IPs are used for hashing only and never written; raw User-Agents are discarded
 - **Multi-site support** - Track all your apps with one shared database
 - **Full API** - Query your analytics data programmatically
 
-See [docs/PRIVACY.md](./docs/PRIVACY.md) for exactly what is collected, how
-visitors are counted without cookies, and text you can quote on a privacy page.
+See [Privacy and compliance](#privacy-and-compliance) below for the short
+version. `docs/PRIVACY.md` in the source repository has the full accounting —
+exactly what is collected, how visitors are counted without cookies, the
+limits of those claims, and text you can adapt for a privacy page. That
+document is not included in the npm package.
 
 ## Architecture
 
@@ -391,7 +394,7 @@ const data = await getTimeSeries({
 nosework is designed to be privacy-friendly by default:
 
 ### No Cookies
-Visitors are identified by a hash of IP + User-Agent + daily salt. This hash rotates daily, so you can't track users across days (by design).
+Visitors are identified by a hash of IP + User-Agent + daily salt. This hash rotates daily, so you can't track users across days (by design). The site ID is not part of the hash, so within one UTC day the same visitor produces the same hash on every site sharing the database — useful if you run several apps, and worth disclosing if you do.
 
 ### No PII Storage
 - IP addresses are **never stored** - only used for hashing
@@ -404,13 +407,31 @@ Sessions are inferred using a 30-minute window hash. No session cookies needed.
 ### Bot Filtering
 Known bots (Googlebot, crawlers, etc.) are automatically flagged and excluded from statistics.
 
-### GDPR Compliance
-Because no cookies are used and no PII is stored, you typically don't need:
-- Cookie consent banners
-- Privacy policy updates for analytics
-- Data processing agreements
+---
 
-*Note: Consult with a legal professional for your specific situation.*
+## Privacy and Compliance
+
+Short version, for the GDPR/ePrivacy question this package usually gets asked:
+
+- **No cookie consent banner.** Nothing is written to, or read from, the
+  visitor's device, so ePrivacy Directive Art. 5(3) — the rule that makes
+  consent banners necessary — is never triggered. This is the same basis
+  cookieless analytics products rely on.
+- **You do still need privacy-policy text.** The processing that does happen
+  (deriving the hashes, storing page metadata) rests on GDPR Art. 6(1)(f)
+  legitimate interest, which carries Art. 13 transparency duties. Not needing
+  a banner is not the same as not needing a disclosure.
+- **A DPA may still apply.** nosework is self-hosted, but whoever hosts your
+  app and your database (Vercel and Neon, in the common setup) processes that
+  data on your behalf and is a sub-processor like any other.
+
+`docs/PRIVACY.md` in the source repository documents every stored field, the
+7-day salt lifetime the anonymity argument depends on, the retention jobs your
+deployment has to schedule itself, and a paragraph you can adapt for a privacy
+page.
+
+*This is a summary of how the software behaves, not legal advice. Consult a
+legal professional for your specific situation.*
 
 ---
 
@@ -502,6 +523,11 @@ The package uses these tables (created by this repo's own Drizzle migrations in 
 - **error_groups** - Aggregated errors by fingerprint
 
 See `src/schema.ts` for the Drizzle schema definitions.
+
+`bun run db:migrate` assumes an empty database. If these tables already exist,
+migration 0000 fails with `relation "page_views" already exists` — do not drop
+and recreate them; mark the migration as applied instead. The catch-up
+procedure is in `docs/ARCHITECTURE.md` in the source repository.
 
 ---
 

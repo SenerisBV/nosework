@@ -19,7 +19,7 @@ nosework is an npm package that:
 - Writes directly to your existing database infrastructure (Neon PostgreSQL)
 - Tracks multiple apps/sites with a unified view
 - Uses Vercel's built-in geo headers - no third-party GeoIP service
-- Is completely cookieless and GDPR-compliant by design
+- Is completely cookieless, so no consent banner is required (see `PRIVACY.md` for what that does and does not settle)
 
 ## Core Philosophy
 
@@ -27,7 +27,7 @@ nosework is an npm package that:
 - **No cookies** - Visitors identified by daily-rotating hash
 - **No PII stored** - IPs used only for hashing, never persisted
 - **User-Agent anonymized** - Parsed to categories, raw strings discarded
-- **GDPR compliant** - No consent banners needed
+- **No consent banner** - Nothing is written to or read from the visitor's device, so ePrivacy Art. 5(3) is never triggered. You do still need privacy-policy text; see `PRIVACY.md`.
 
 ### Simplicity
 - Single npm package, not a separate service
@@ -45,7 +45,7 @@ nosework is an npm package that:
 nosework is ideal for:
 - **App suites** - Multiple apps under one organization
 - **Vercel-hosted apps** - Leverages Vercel's geo headers
-- **Privacy-conscious projects** - GDPR compliance without complexity
+- **Privacy-conscious projects** - Cookieless by construction, with the privacy claims written down and checked against the source in `PRIVACY.md`
 - **Developers who want control** - Own your data, query it however you want
 
 ## What nosework is NOT

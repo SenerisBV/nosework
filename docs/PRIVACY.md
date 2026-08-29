@@ -50,9 +50,15 @@ this list is stored beyond what's in `src/schema.ts`.
   never written to any column or log.
 - No raw User-Agent string. It's parsed into `browser` / `browserVer` /
   `os` / `osVer` / `device` and discarded.
-- No cross-site identifier — `visitorHash` is derived per site view and
-  rotates daily (see below); it is not a persistent ID shared across sites
-  or sessions.
+- No client-side identifier, and no identifier that survives the day. The
+  `visitorHash` is never written to or read from the visitor's device, is
+  not an advertising ID, and is not shared with any third party. It is not
+  scoped per site, though: within a single UTC day the same visitor
+  produces the same `visitorHash` on every site sharing this database, so
+  an operator running several sites can see one day's activity across
+  their own sites. Once the salt rotates at UTC midnight that link is gone
+  and cannot be re-derived. See
+  [How visitors are counted](#how-visitors-are-counted-without-cookies).
 - No device fingerprint (canvas, fonts, screen size, timezone, etc. are
   never collected).
 - No advertising identifier.
@@ -74,6 +80,19 @@ Because the salt rotates at UTC midnight, the same person visiting on two
 different days produces two unrelated hashes with no way to link them back
 to each other, even by someone with full database access. The hash itself
 cannot be reversed to recover the originating IP.
+
+**The hash input contains no `siteId`.** `computeVisitorIds()` takes the IP,
+the User-Agent, the salt and the time, and nothing else; `trackPageView()`
+does not pass it the site. Within one UTC day, therefore, a visitor produces
+the same `visitorHash` on every site that shares this database, and an
+operator holding that database can group a single day's page views across
+their own sites by that value. That is the honest limit of the daily
+rotation: it bounds the identifier in *time*, not across the sites in one
+deployment. It goes no further than that — the value never reaches the
+visitor's browser, is never sent to a third party, and stops being linkable
+to anything once the day's salt is deleted. An operator running more than
+one site against a single nosework database should say so in their own
+privacy notice.
 
 Salts older than 7 days are deleted by `cleanupOldSalts()`. Once a day's
 salt is gone, that day's `visitorHash` values can no longer be re-derived or
@@ -136,8 +155,9 @@ the processing that does happen (deriving and storing the hashes and page
 metadata above), independent of the ePrivacy question. The basis is
 legitimate interest, GDPR Article 6(1)(f) — a site operator's interest in
 understanding aggregate traffic to a site they operate, balanced against the
-minimal impact on visitors given the hashing, the lack of any persistent
-identifier, and the bounded retention period.
+minimal impact on visitors given the hashing, the absence of any identifier
+that outlives the day or leaves the operator's own database, and the
+bounded retention period.
 
 These are not the same question, and satisfying one does not satisfy the
 other: the ePrivacy analysis is why no *banner* is required; the GDPR
@@ -184,7 +204,7 @@ no-consent-banner position rests on. It does not cover:
 
 A site that uses either of these must review what it passes to them and
 account for it in its own privacy notice — the guarantees above (no PII, no
-raw IP, no raw User-Agent, no cross-site identifier) apply to the page-view
+raw IP, no raw User-Agent, no client-side storage) apply to the page-view
 path described in this document, not to arbitrary data a site chooses to
 attach to a custom event or error report.
 
@@ -231,6 +251,18 @@ that code to you" is false for those page views — the stored `userId`
 links the row back to your own user account regardless of salt rotation.
 Either drop that sentence, or add a clause noting that visits tied to a
 logged-in user remain identifiable to you for the full retention period.
+
+**If your deployment is not hosted and stored in the EU, drop the final
+sentence or substitute your own regions.** "This processing happens within
+the EU" is a fact about this operator's deployment (Vercel `fra1`, Neon
+`eu-central-1`), not a property of the library — see
+[Sub-processors and data location](#sub-processors-and-data-location).
+
+**If you run more than one site against a single nosework database, the
+paragraph below understates what you can see.** It is written for a site
+standing on its own. Within one UTC day the same visitor's code is
+identical across every site sharing the database, so you can link that
+day's visits between them; add a sentence saying so if that is your setup.
 
 > This site uses cookieless analytics. No cookies are set and nothing is
 > stored in your browser. To count visits without cookies, we take your IP
