@@ -61,7 +61,7 @@ npm version major -m "Release %s"
 ## Pre-publish Checklist
 
 - [ ] All changes committed
-- [ ] Tests pass (when we have them)
+- [ ] Tests pass: `bun test` (29 tests, all DB-free)
 - [ ] Build succeeds: `bun run build`
 - [ ] Version bumped appropriately
 - [ ] CHANGELOG updated (if maintaining one)
