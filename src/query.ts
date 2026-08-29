@@ -223,7 +223,7 @@ export async function getTimeSeries(
   }));
 }
 
-function formatDateKey(
+export function formatDateKey(
   date: Date,
   interval: "hour" | "day" | "week" | "month"
 ): string {
