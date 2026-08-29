@@ -48,6 +48,32 @@ describe("computeVisitorIds", () => {
     expect(before.sessionId).not.toBe(after.sessionId);
   });
 
+  test("the two identity inputs are not interchangeable", () => {
+    // The hash must not be commutative in its inputs: passing the IP where
+    // the User-Agent goes has to produce a different identity.
+    const forward = computeVisitorIds(IP, UA, SALT_A, T);
+    const swapped = computeVisitorIds(UA, IP, SALT_A, T);
+    expect(forward).not.toEqual(swapped);
+    expect(forward.visitorHash).not.toBe(swapped.visitorHash);
+    expect(forward.sessionId).not.toBe(swapped.sessionId);
+  });
+
+  test("known-answer vector: the hash input format is frozen", () => {
+    // The test above is symmetric and so cannot, on its own, detect a silent
+    // reordering of the hash inputs — swapping them changes every visitor's
+    // identity in live data while leaving that assertion green. This pins the
+    // exact bytes: sha256("<ip>|<ua>|<salt>").slice(0, 16) for the visitor
+    // hash, and the same input plus "|<30-min bucket>" for the session id.
+    //
+    // If this test fails, the identity derivation changed. That is a
+    // deliberate, breaking act — every existing visitorHash stops matching
+    // its history — not something to fix by updating the constants below.
+    expect(computeVisitorIds(IP, UA, SALT_A, T)).toEqual({
+      visitorHash: "28821c303cf623de",
+      sessionId: "da64d748627c5bcd",
+    });
+  });
+
   test("visitor hash is stable across a session boundary", () => {
     const before = computeVisitorIds(IP, UA, SALT_A, new Date("2026-08-29T12:29:59Z"));
     const after = computeVisitorIds(IP, UA, SALT_A, new Date("2026-08-29T12:30:01Z"));

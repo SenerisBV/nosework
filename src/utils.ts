@@ -135,10 +135,16 @@ export function extractPathname(url: string): string {
 }
 
 // Clean up old daily salts (older than 7 days)
+//
+// The arithmetic is done in UTC throughout: salts are keyed by UTC calendar
+// day (getDailySalt() derives its key from toISOString()), so subtracting in
+// local time and then formatting in UTC would land the cutoff a day early or
+// late on any host that isn't at UTC+0 — salts would live 6 or 8 days rather
+// than 7. docs/PRIVACY.md makes the 7-day number load-bearing.
 export async function cleanupOldSalts(): Promise<number> {
   const db = getClient();
   const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  sevenDaysAgo.setUTCDate(sevenDaysAgo.getUTCDate() - 7);
   const dateStr = sevenDaysAgo.toISOString().split("T")[0]!;
 
   const deleted = await db

@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import { buildRetentionWhere } from "../src/retention.js";
-import { pageViews } from "../src/schema.js";
 
 /**
  * Helper to recursively search for a specific table column in the SQL queryChunks.
@@ -62,6 +61,34 @@ describe("buildRetentionWhere", () => {
 
     // whereUndefined should NOT include siteId condition
     expect(containsColumn(undefinedChunks, "siteId")).toBe(false);
+  });
+
+  test("without siteId still filters by timestamp", () => {
+    const where = buildRetentionWhere(testDate);
+    const chunks = (where as any).queryChunks;
+
+    // The cutoff is the whole point of the sweep: without it, an unscoped
+    // call deletes every page view ever recorded.
+    expect(containsColumn(chunks, "timestamp")).toBe(true);
+  });
+
+  test("with siteId still filters by timestamp", () => {
+    const where = buildRetentionWhere(testDate, "example.com");
+    const chunks = (where as any).queryChunks;
+
+    // Regression guard: a predicate that drops the timestamp clause when a
+    // siteId is given would delete every row that site ever recorded, which
+    // is exactly what the nightly cron calls.
+    expect(containsColumn(chunks, "timestamp")).toBe(true);
+    expect(containsColumn(chunks, "siteId")).toBe(true);
+  });
+
+  test("with empty string siteId still filters by timestamp", () => {
+    const where = buildRetentionWhere(testDate, "");
+    const chunks = (where as any).queryChunks;
+
+    expect(containsColumn(chunks, "timestamp")).toBe(true);
+    expect(containsColumn(chunks, "siteId")).toBe(true);
   });
 
   test("two predicates (with and without siteId) are not equal", () => {
