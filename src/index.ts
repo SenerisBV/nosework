@@ -33,6 +33,9 @@ export {
 export { listSites } from "./sites.js";
 export type { SiteSummary } from "./sites.js";
 
+// Retention
+export { deleteOldPageViews } from "./retention.js";
+
 // Schema exports (for advanced use cases)
 export * from "./schema.js";
 
