@@ -1,6 +1,13 @@
 # Publishing to npm
 
-Guide for publishing `@seneris/nosework` and `@seneris/nosework-llm` to npm.
+Guide for publishing `@seneris/nosework` to npm.
+
+**Currently published:** 0.3.0, on 2026-08-29. Nothing is pending — the
+published tarball has been verified identical to a build from the tagged
+commit.
+
+(Earlier versions of this guide also covered `@seneris/nosework-llm`. That
+package was never built and does not exist; see `ROADMAP.md` Phase 6.)
 
 ## Prerequisites
 
@@ -30,17 +37,6 @@ npm version patch  # or minor, or major
 npm publish
 ```
 
-## Publishing @seneris/nosework-llm
-
-```bash
-cd /path/to/nosework-llm
-
-# Same steps
-bun run build
-npm pack --dry-run
-npm publish --access public
-```
-
 ## Version Strategy
 
 Follow [semver](https://semver.org/):
@@ -65,7 +61,15 @@ npm version major -m "Release %s"
 - [ ] Build succeeds: `bun run build`
 - [ ] Version bumped appropriately
 - [ ] CHANGELOG updated (if maintaining one)
-- [ ] README is up to date
+- [ ] README is up to date — it ships to npm regardless of the `files` field,
+      so any inaccuracy in it is published too
+- [ ] **Push the commits and the tag**: `git push origin main --follow-tags`
+
+That last item is not ceremony. 0.3.0 sat on npm for two weeks with no public
+source behind it, because `npm version` creates a tag locally and `npm publish`
+does not care whether git has been pushed. The registry is the thing users see;
+git is the thing that explains it. Publishing without pushing leaves the second
+one missing.
 
 ## Package Contents
 
@@ -101,6 +105,26 @@ npm install @seneris/nosework
 # Check the installed files
 ls node_modules/@seneris/nosework
 ```
+
+### Confirming the registry matches the source
+
+To check that what is on npm is actually built from the commit you think it is
+— useful when you cannot remember whether a release went out before or after
+the last few commits:
+
+```bash
+# Fetch and unpack the published tarball
+npm pack @seneris/nosework@<version>
+tar xzf seneris-nosework-<version>.tgz     # unpacks to ./package
+
+# Build the current checkout and compare
+bun run build
+diff -rq package/dist dist && echo "dist identical"
+diff -q package/README.md README.md && echo "README identical"
+```
+
+A clean diff means the registry and the working tree agree. A difference means
+the release predates commits you still have locally.
 
 ## Unpublishing (Emergency Only)
 

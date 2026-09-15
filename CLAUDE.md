@@ -8,7 +8,7 @@ nosework is an npm package that provides:
 - Cookieless analytics tracking — no consent banner required (see `docs/PRIVACY.md` for what that does and does not cover)
 - City-level geolocation via Vercel's geo headers
 - Multi-site support with a shared PostgreSQL database
-- Full query API for building dashboards
+- Full query API for building dashboards (page views, sessions, errors — but see the Events gap below)
 
 ## Architecture
 
@@ -64,6 +64,11 @@ Each consuming app:
 - `getPageFlows()` - Common user paths through the site
 - `getSessions()` - Individual session data for debugging
 
+### Events — no query functions exist
+`trackEvent()` writes to the `events` table and **nothing reads it**. There are
+no event analytics queries in `src/query.ts`. Recording events works; analysing
+them is not implemented. Tracked as a gap in `docs/ROADMAP.md` (Phase 3).
+
 ### Site Management
 - `listSites()` - List all tracked sites, derived from page-view data (there is no sites table)
 
@@ -98,6 +103,23 @@ bun run dev
 Note: nosework owns its own migrations. Versioned SQL lives in `drizzle/`, generated with `bun run db:generate` and applied with `bun run db:migrate`. `drizzle-kit push` is never used — it mutates the database without recording a migration, drifting the schema from its history.
 
 `bun run db:migrate` succeeds as-is only against an empty database. `drizzle/0000_init.sql` has no `IF NOT EXISTS`, so against a database that already holds these tables it fails with `relation "page_views" already exists`. Do not drop and recreate — that destroys analytics history. Follow the catch-up procedure in `docs/ARCHITECTURE.md` ("Applying migrations to a database where the tables already exist").
+
+## The dashboard lives elsewhere
+
+This package ships query functions, not UI. The dashboard that consumes them is
+a separate repo, `~/projects/stats.seneris.nl` — Next.js, depends on
+`@seneris/nosework` as an ordinary npm package.
+
+It is **local-only and never deployed** (decided 2026-09-15): a dashboard that
+is never exposed removes the authentication problem rather than solving it.
+
+One consequence lands on this package's guarantees. `cleanupOldSalts()` and
+`deleteOldPageViews()` were going to be invoked nightly by Vercel Cron on the
+deployed dashboard. Nothing is deployed, so nothing invokes them. Until the
+operator schedules them some other way, salts accumulate past 7 days and the
+retention window is not enforced — which makes parts of `docs/PRIVACY.md`
+aspirational rather than descriptive. `PRIVACY.md` is honest about this
+dependency; keep it that way.
 
 ## Geolocation
 

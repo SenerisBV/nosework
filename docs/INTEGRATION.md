@@ -289,11 +289,21 @@ NEXT_PUBLIC_ANALYTICS_SITE_ID="your-app-name"
 
 ---
 
-## 8. LLM Tracking (Optional)
+## 8. LLM Tracking — NOT AVAILABLE
+
+> ⚠️ **Do not follow this section. `@seneris/nosework-llm` does not exist.**
+>
+> The package was specified but never built or published — `bun add
+> @seneris/nosework-llm` will fail with a 404 from the npm registry. nosework's
+> own schema has no LLM table either.
+>
+> The code below is retained as the intended API design, so that whoever builds
+> the package has the shape it was meant to have. See Phase 6 in
+> `docs/ROADMAP.md` for what building it requires. Skip to section 9.
 
 For apps using OpenAI, Anthropic, or other LLM APIs.
 
-### Install LLM Package
+### Install LLM Package (does not work yet)
 
 ```bash
 bun add @seneris/nosework-llm
@@ -357,9 +367,9 @@ await trackPageView({
 ```
 
 This enables:
-- Per-user analytics in dashboard
+- Per-user analytics in the dashboard
 - User journey tracking
-- LLM usage per user
+- LLM usage per user (once the LLM package exists — see section 8)
 
 ---
 
@@ -393,9 +403,13 @@ This is expected in local development. Vercel geo headers are only available whe
 
 ## Next Steps
 
-- Query analytics using the functions in the [README](../README.md) — there is no dashboard UI yet
+- Query analytics using the functions in the [README](../README.md)
+- View them in the dashboard — a separate, local-only Next.js app; see
+  [DASHBOARD_REQUIREMENTS.md](DASHBOARD_REQUIREMENTS.md)
+- **Schedule `cleanupOldSalts()` and `deleteOldPageViews()`.** Nothing in this
+  package invokes them, and the privacy guarantees in
+  [PRIVACY.md](PRIVACY.md) depend on them running. See that document.
 - Set up alerts for error spikes
-- Monitor LLM costs
 
 ---
 

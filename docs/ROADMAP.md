@@ -51,23 +51,40 @@ nosework aims to be the simplest, most privacy-respecting analytics solution for
 
 ---
 
-## Phase 3: Dashboard Integration
+## Phase 3: Dashboard — DECIDED, built outside this package
 
-**Goal:** Provide a pre-built dashboard or easy dashboard components.
+**Goal:** A way to actually look at the data.
 
-### Option A: Dashboard Components
-- [ ] React components for common visualizations
-- [ ] Stats cards component
-- [ ] Time series chart component
-- [ ] Top pages list component
-- [ ] Location breakdown component
-- [ ] Referrer list component
+**Decision (2026-09-15):** neither option below. The dashboard is a separate
+Next.js application, `~/projects/stats.seneris.nl`, which consumes this
+package's query functions as an ordinary npm dependency. It runs **locally
+only** — never deployed, never publicly reachable, and therefore with no
+authentication to build or maintain. See `DASHBOARD_REQUIREMENTS.md`.
 
-### Option B: API Enhancements
-- [ ] GraphQL API option
-- [ ] Real-time subscriptions (WebSocket)
+What this settles: nosework ships query functions, not UI. Option A is not
+planned — shipping React components would put a UI framework in the dependency
+tree of a package that otherwise runs server-side only, and would tie dashboard
+changes to package releases.
+
+### Option A: Dashboard Components — not planned
+- [ ] ~~React components for common visualizations~~
+- [ ] ~~Stats cards component~~
+- [ ] ~~Time series chart component~~
+- [ ] ~~Top pages list component~~
+- [ ] ~~Location breakdown component~~
+- [ ] ~~Referrer list component~~
+
+### Option B: API Enhancements — still open, none scheduled
 - [ ] Export to CSV/JSON
 - [ ] Scheduled reports
+- [ ] ~~GraphQL API option~~ — dropped; the only consumer queries the database directly
+- [ ] ~~Real-time subscriptions (WebSocket)~~ — dropped; a local dashboard can poll
+
+### Gap this phase depends on
+- [ ] **Event analytics queries** — `trackEvent()` writes to the `events`
+      table and nothing reads it. `src/query.ts` has no event functions at all,
+      so the Events section of `DASHBOARD_REQUIREMENTS.md` cannot be built
+      against 0.3.0. This is package work, not dashboard work.
 
 ---
 
@@ -105,24 +122,46 @@ All derived from existing PageView data (no schema changes required).
 
 ---
 
-## Phase 6: LLM Analytics ✅ COMPLETE
+## Phase 6: LLM Analytics — SPECIFIED, NEVER BUILT
 
-**Goal:** Track LLM API usage across apps (`@seneris/nosework-llm` package).
+**Goal:** Track LLM API usage across apps, as a companion
+`@seneris/nosework-llm` package.
+
+> **Corrected 2026-09-15.** This phase was previously marked ✅ COMPLETE with
+> every item checked. That was wrong: none of it exists. `@seneris/nosework-llm`
+> returns 404 from the npm registry, there is no such directory on the
+> development machine, and `git log --all --diff-filter=A` shows no LLM source
+> ever committed to this repository. The checkmarks appear to have recorded an
+> intent to build rather than a build.
+>
+> The design is real, though, and predates this package standing alone: a
+> `LLMCall` Prisma model still sits in `~/projects/moopysuite/prisma/schema.prisma`
+> under the comment `// Analytics - LLM Usage Tracking (nosework-llm)`. That is
+> from the era removed by commits `53ee8e8` and `f242382`, when nosework was
+> coupled to MoopySuite's schema. nosework now owns its own Drizzle schema, and
+> that schema has **no LLM table** — see `drizzle/0000_init.sql`, which creates
+> five tables, none of them for LLM calls.
+>
+> So building this means: a table and migration here, then the package. The
+> checklist below is a specification, not a status report.
 
 ### Tracking
-- [x] `trackLLMCall()` - Record model, tokens, latency, cost
-- [x] `withLLMTracking()` - Wrapper for automatic tracking
-- [x] Built-in pricing for 50+ models (OpenAI, Anthropic, Google, Mistral, etc.)
-- [x] Conversation grouping via conversationId
-- [x] Cost estimation
+- [ ] `trackLLMCall()` - Record model, tokens, latency, cost
+- [ ] `withLLMTracking()` - Wrapper for automatic tracking
+- [ ] Built-in pricing for 50+ models (OpenAI, Anthropic, Google, Mistral, etc.)
+- [ ] Conversation grouping via conversationId
+- [ ] Cost estimation
 
 ### Queries
-- [x] `getLLMStats()` - Total calls, tokens, cost, error rate
-- [x] `getLLMUsageByModel()` - Breakdown by model
-- [x] `getLLMTimeSeries()` - Usage over time
-- [x] `getLLMCalls()` - Individual call list
-- [x] `getConversation()` - Calls by conversation ID
-- [x] `getLLMUsageByUser()` - Per-user breakdown
+- [ ] `getLLMStats()` - Total calls, tokens, cost, error rate
+- [ ] `getLLMUsageByModel()` - Breakdown by model
+- [ ] `getLLMTimeSeries()` - Usage over time
+- [ ] `getLLMCalls()` - Individual call list
+- [ ] `getConversation()` - Calls by conversation ID
+- [ ] `getLLMUsageByUser()` - Per-user breakdown
+
+### Prerequisite
+- [ ] `llm_calls` table in `src/schema.ts` plus a generated migration
 
 ---
 
@@ -158,7 +197,7 @@ All derived from existing PageView data (no schema changes required).
 - [ ] Data archival/cleanup
 
 ### Team Features
-- [ ] Role-based access (if dashboard built)
+- [ ] ~~Role-based access~~ — moot; the dashboard is local-only and single-operator
 - [ ] Audit logging
 - [ ] API rate limiting
 

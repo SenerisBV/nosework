@@ -1,19 +1,30 @@
 # nosework - Project State
 
-**Last Updated:** January 2025
+**Last Updated:** 2026-09-15
 
 ---
 
-## Current Status: Published
+## Current Status: Published, not yet used in anger
 
-Both packages are published to npm and ready for integration.
+`@seneris/nosework` 0.3.0 is on npm. The published tarball has been verified
+byte-identical to a build from the tagged commit, README included.
+
+The package has never run against real traffic, and no application currently
+imports it.
 
 ### Packages
 
 | Package | Status | npm |
 |---------|--------|-----|
-| `@seneris/nosework` | ✅ Published | [npm](https://www.npmjs.com/package/@seneris/nosework) |
-| `@seneris/nosework-llm` | ✅ Published | [npm](https://www.npmjs.com/package/@seneris/nosework-llm) |
+| `@seneris/nosework` | ✅ Published — 0.3.0, 2026-08-29 | [npm](https://www.npmjs.com/package/@seneris/nosework) |
+| `@seneris/nosework-llm` | ❌ **Does not exist** — never built, never published | — |
+
+> **Correction (2026-09-15).** This table previously claimed both packages were
+> published, linking to an npm page for `@seneris/nosework-llm` that returns
+> 404. That package has never existed: it is absent from the registry, absent
+> from the development machine, and `git log --all --diff-filter=A` finds no
+> LLM source ever committed here. Its API design survives in `ROADMAP.md`
+> Phase 6 and `INTEGRATION.md` section 8, both now labelled as unbuilt.
 
 ---
 
@@ -89,24 +100,14 @@ after 7 days — and none is needed.
 - ✅ `captureError()` - Manual error tracking
 - ✅ `stopErrorTracking()` - Cleanup
 
-### LLM Analytics (`@seneris/nosework-llm`)
+### Cleanup / retention
+- ✅ `cleanupOldSalts()` - Delete salts older than 7 days
+- ✅ `deleteOldPageViews()` - Retention cleanup (omit `siteId` to sweep all sites)
+- ✅ `deleteOldErrors()` - Clean up old error data
 
-**Tracking:**
-- ✅ `trackLLMCall()` - Track API calls
-- ✅ `withLLMTracking()` - Wrapper for auto-tracking
-
-**Queries:**
-- ✅ `getLLMStats()` - Calls, tokens, cost, latency, error rate
-- ✅ `getLLMUsageByModel()` - Per-model breakdown
-- ✅ `getLLMTimeSeries()` - Usage over time
-- ✅ `getLLMCalls()` - Individual call list
-- ✅ `getConversation()` - Calls by conversation ID
-- ✅ `getLLMUsageByUser()` - Per-user breakdown
-
-**Pricing:**
-- ✅ `estimateCost()` - Calculate costs
-- ✅ `setModelPricing()` - Override prices
-- ✅ Built-in pricing for 50+ models
+⚠️ **Nothing in this package schedules any of them.** They are exported
+functions; an operator has to arrange for them to run. `PRIVACY.md` is explicit
+that its 7-day guarantee depends on this, and is the source of truth.
 
 ---
 
@@ -118,7 +119,8 @@ after 7 days — and none is needed.
 - ❌ Not tested with real traffic
 
 ### Publishing
-- ✅ Published to npm
+- ✅ Published to npm (0.3.0)
+- ✅ Source pushed to `github.com/SenerisBV/nosework`
 - ❌ No CI/CD pipeline
 
 ### Migrations
@@ -130,8 +132,29 @@ after 7 days — and none is needed.
 - ❌ No retry logic
 - ❌ No logging integration
 
+### Event analytics — a real gap
+- ✅ `trackEvent()` writes to the `events` table
+- ❌ **Nothing reads it.** `src/query.ts` has no event query functions at all.
+  Events can be recorded but not analysed, and the Events section of
+  `DASHBOARD_REQUIREMENTS.md` cannot be built until this is fixed. Package
+  work, targeted at 0.4.0.
+
 ### Dashboard
-- ❌ No pre-built dashboard (requirements documented in `DASHBOARD_REQUIREMENTS.md`)
+- ✅ A dashboard exists: `~/projects/stats.seneris.nl`, its own repo, Next.js 16
+  + shadcn/ui + Recharts, consuming this package as an npm dependency
+- ✅ Built: headline stats, traffic chart, top pages / locations / referrers /
+  devices, site switcher, range picker, session panel with entry/exit pages and
+  page flows
+- ❌ Not built: events UI (blocked, above), error-tracking UI (unblocked —
+  every query it needs ships in 0.3.0), LLM UI (blocked on a nonexistent package)
+- 📍 **Local-only, decided 2026-09-15.** Never deployed and not intended to be:
+  a dashboard that is never exposed removes the authentication problem instead
+  of solving it. The password-auth and Vercel-cron scaffolding built for the
+  original hosted plan is being removed in that repo.
+- ⚠️ Consequence: Vercel Cron was going to run `cleanupOldSalts()` and
+  `deleteOldPageViews()` nightly. With nothing deployed, scheduling them is an
+  open question owned by the dashboard repo. Until it is answered, salts
+  accumulate and `PRIVACY.md`'s 7-day claim is not yet true in practice.
 
 ---
 
@@ -162,16 +185,7 @@ nosework/                          # @seneris/nosework
 │   ├── INTEGRATION.md
 │   ├── PUBLISHING.md
 │   └── DASHBOARD_REQUIREMENTS.md
-└── package.json
-
-nosework-llm/                      # @seneris/nosework-llm
-├── src/
-│   ├── index.ts                   # Main exports
-│   ├── track.ts                   # LLM call tracking
-│   ├── query.ts                   # LLM query functions
-│   ├── pricing.ts                 # Model pricing data
-│   ├── client.ts                  # Database client
-│   └── types.ts                   # TypeScript types
+├── test/                          # Unit tests (DB-free; setup.ts guards access)
 └── package.json
 ```
 
@@ -201,8 +215,16 @@ app connects to whatever PostgreSQL database it's configured to use via
 2. ✅ ~~Add schema~~
 3. ✅ ~~Run migrations~~
 4. ✅ ~~Publish to npm~~
-5. ⏳ **Integrate into first app** - See `docs/INTEGRATION.md`
-6. ⏳ **Build dashboard**
+5. ✅ ~~Push source to GitHub~~
+6. ⏳ **Integrate into first app** — see `docs/INTEGRATION.md`. Nothing imports
+   the package yet, so none of it has met real traffic.
+7. ⏳ **Schedule `cleanupOldSalts()` and `deleteOldPageViews()`** — the privacy
+   claims depend on it and nothing currently runs them
+8. ⏳ **Make the dashboard local-only** — strip password auth and the Vercel
+   cron scaffolding (work owned by `~/projects/stats.seneris.nl`)
+9. ⏳ **Event analytics queries** — unblocks the dashboard's Events section
+10. ⏳ *Someday:* build `@seneris/nosework-llm`, starting with a table and
+    migration here (`ROADMAP.md` Phase 6)
 
 ---
 
