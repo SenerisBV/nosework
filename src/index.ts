@@ -40,7 +40,8 @@ export { deleteOldPageViews } from "./retention.js";
 export * from "./schema.js";
 
 // Client utilities
-export { getClient, disconnect } from "./client.js";
+export { getClient, disconnect, configure } from "./client.js";
+export type { NoseworkConfig } from "./client.js";
 
 // Utility functions
 export { isBot, cleanupOldSalts } from "./utils.js";

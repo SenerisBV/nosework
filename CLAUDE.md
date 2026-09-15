@@ -44,7 +44,7 @@ Each consuming app:
 | `src/ua.ts` | User-Agent parsing |
 | `src/utils.ts` | Visitor hashing, bot detection |
 | `src/schema.ts` | Drizzle schema definitions |
-| `src/client.ts` | Database client singleton |
+| `src/client.ts` | Database client singleton, `configure()`, connection resolution |
 | `src/types.ts` | TypeScript interfaces |
 
 ## Query Functions
@@ -152,12 +152,35 @@ Tables (defined in `src/schema.ts`, created by this repo's own Drizzle migration
 - **analytics_errors** - Individual error occurrences with stack traces
 - **error_groups** - Aggregated errors by fingerprint with counts and status
 
+## Configuration
+
+`getClient()` resolves its connection in this order: a `client` passed to
+`configure()`, then a `connectionString` passed to `configure()`, then
+`ANALYTICS_DATABASE_URL`. Before 0.4.0 the environment variable was the only
+option, which is why the dashboard had to encode pool size as `?max=1` in the
+URL itself.
+
+`resolveConnection()` is kept pure and separate from `getClient()` so the
+precedence rules are testable without a database — the same pattern as
+`computeVisitorIds()` and `buildRetentionWhere()`.
+
+Two deliberate behaviours: `configure()` throws rather than silently ignoring a
+late call, and `disconnect()` does not end a client the caller supplied.
+
+## siteId
+
+A free-text string, not a registered name. Nothing validates it, there is no
+sites table, and since 0.3.0 it is part of the visitor hash — so renaming a
+site is a data migration, not a relabelling. The same env var drives local dev,
+so a production `ANALYTICS_SITE_ID` in `.env.local` writes your own browsing
+into production data.
+
 ## Integration Requirements
 
 Each app that uses nosework needs:
 
 1. **Environment variables**:
-   - `ANALYTICS_DATABASE_URL` - Database connection string
+   - `ANALYTICS_DATABASE_URL` - Database connection string (or use `configure()`)
    - `ANALYTICS_SITE_ID` - Site identifier for this app
 
 2. **API endpoint**: `/api/analytics/track` route that:

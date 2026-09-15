@@ -16,7 +16,7 @@ imports it.
 
 | Package | Status | npm |
 |---------|--------|-----|
-| `@seneris/nosework` | ✅ Published — 0.3.0, 2026-08-29 | [npm](https://www.npmjs.com/package/@seneris/nosework) |
+| `@seneris/nosework` | 0.3.0 published 2026-08-29; **0.4.0 prepared, not yet published** | [npm](https://www.npmjs.com/package/@seneris/nosework) |
 | `@seneris/nosework-llm` | ❌ **Does not exist** — never built, never published | — |
 
 > **Correction (2026-09-15).** This table previously claimed both packages were
@@ -119,9 +119,32 @@ that its 7-day guarantee depends on this, and is the source of truth.
 - ❌ Not tested with real traffic
 
 ### Publishing
-- ✅ Published to npm (0.3.0)
+- ✅ 0.3.0 published to npm
+- ⏳ **0.4.0 is prepared in the tree but not published** — `package.json` says
+  0.4.0 while the registry still serves 0.3.0. Run the checklist in
+  `PUBLISHING.md` to close the gap.
 - ✅ Source pushed to `github.com/SenerisBV/nosework`
 - ❌ No CI/CD pipeline
+
+### Adoptability
+The package is on a public registry, so strangers can install it. Making it
+genuinely adoptable is a separate matter, part-done:
+- ✅ `LICENSE` file (MIT text, previously only a `package.json` field)
+- ✅ `repository`, `homepage`, `bugs` and `author` metadata
+- ✅ `configure()` — the database connection is no longer reachable only
+  through one hardcoded environment variable
+- ⚠️ **The GitHub repository is private.** Anyone evaluating a package that
+  handles visitors' IP addresses has to take the privacy claims on faith,
+  and the `repository` URL above 404s until this changes.
+- ❌ Bot patterns are a hardcoded list of 41 regexes with no way to extend or
+  override them, and they are opinionated (`/anthropic/i`, `/openai/i`,
+  `/gptbot/i`, `/claudebot/i` all classify as bots)
+- ❌ The 30-minute session window is hardcoded. The 7-day salt lifetime is too,
+  deliberately — `PRIVACY.md` makes it load-bearing, so exposing it as config
+  would mean making the privacy guarantee configurable.
+- ❌ Docs assume Vercel and Neon throughout, though the code requires neither:
+  geo values are ordinary parameters, so any host that can supply them works,
+  and any Postgres will do.
 
 ### Migrations
 - ✅ Owned by this repo — versioned SQL in `drizzle/`, generated with `bun run db:generate`, applied with `bun run db:migrate` (`drizzle-kit push` is never used)

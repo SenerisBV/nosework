@@ -107,6 +107,47 @@ ANALYTICS_DATABASE_URL="postgresql://user:pass@host/dbname"
 ANALYTICS_SITE_ID="my-app"  # Unique identifier for this app
 ```
 
+`ANALYTICS_SITE_ID` is a free-text label, not a registered name. There is no
+sites table: a site exists as soon as it reports a page view, and `listSites()`
+derives the roster from the data. Nothing validates the value, so a typo
+silently becomes a second site. Since 0.3.0 it is also an input to the visitor
+hash, which makes renaming a site a data migration rather than a relabelling —
+choose a name you can keep. Note too that the same variable drives local
+development, so running `bun dev` with a production site id writes your own
+browsing into production data; a `-dev` suffix in `.env.local` avoids it.
+
+#### Configuring without the environment variable (0.4.0+)
+
+If `ANALYTICS_DATABASE_URL` does not suit — a different variable name, an
+existing pool you want shared, driver options to tune — call `configure()`
+once at startup, before any tracking or query call:
+
+```typescript
+import { configure } from '@seneris/nosework';
+
+configure({
+  connectionString: process.env.DATABASE_URL,
+  options: { max: 1 },          // driver options, e.g. pool size
+});
+```
+
+```typescript
+// …or hand it a postgres instance you already own
+import postgres from 'postgres';
+import { configure } from '@seneris/nosework';
+
+configure({ client: postgres(process.env.DATABASE_URL, { max: 5 }) });
+```
+
+Resolution order is `client` → `connectionString` → `ANALYTICS_DATABASE_URL`,
+so existing setups that only set the environment variable are unaffected.
+
+Two behaviours worth knowing. `configure()` throws if called after the first
+query, rather than silently ignoring the new settings — a late call that did
+nothing would be a costly thing to debug. And `disconnect()` will not end a
+client you supplied yourself, since closing a pool your own application is
+still using would be the wrong favour; it only ends connections it opened.
+
 ### 3. Add Tracking Endpoint
 
 Create `app/api/analytics/track/route.ts`:
